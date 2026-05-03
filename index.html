@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="si">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Paper Marking System - Instructor</title>
+    <link rel="stylesheet" href="css/style.css">
+    <!-- Boxicons -->
+    <link href='https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css' rel='stylesheet'>
+    <!-- Supabase -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <!-- HTML5 QRCode -->
+    <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
+    <!-- QR Code Generator -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <!-- Reports -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
+    <!-- PWA -->
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#10b981">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <link rel="icon" type="image/png" href="logo.png">
+    <link rel="apple-touch-icon" href="logo.png">
+</head>
+<body>
+
+    <!-- ===================== LOGIN VIEW ===================== -->
+    <div class="app-login fade-in" id="app-container">
+
+        <div class="login-box">
+            <div class="logo-container">
+                <img src="logo.png" alt="Logo">
+                <h2 class="mt-2" style="color: var(--primary-color);">Zeon Opera - Horana</h2>
+                <p class="text-muted">Instructor Portal | SFT Paper Management</p>
+            </div>
+
+            <div class="glass login-card">
+                <h3 class="mb-4">Select Account</h3>
+                <div class="avatar-list" id="instructor-list">
+                    <div class="text-center w-100"><i class='bx bx-loader-alt bx-spin text-muted' style="font-size: 24px;"></i></div>
+                </div>
+
+                <div id="login-form" class="mt-4 d-none">
+                    <h4 id="selected-name" class="mb-4 text-center">Name</h4>
+                    <div class="input-group">
+                        <label>Password / පින් අංකය</label>
+                        <input type="password" id="login-password" placeholder="••••••••">
+                    </div>
+                    <button class="btn btn-primary w-100" style="width: 100%" onclick="loginWithPassword()">
+                        <i class='bx bx-log-in'></i> Login
+                    </button>
+
+                    <div class="mt-4 text-center">
+                        <p class="text-muted" style="font-size: 12px; letter-spacing: 1px;">ශ්‍රී ලාංකීය සිසුන්ගේ SFT BRAND එක</p>
+                        <button class="btn" style="width: 100%" onclick="loginWithBiometrics()">
+                            <i class='bx bx-fingerprint'></i> Face ID / Fingerprint
+                        </button>
+                    </div>
+
+                    <div class="mt-4" style="display: flex; gap: 10px; border-top: 1px solid var(--border-color); padding-top: 20px;">
+                        <a href="admin.html" class="btn" style="flex: 1; font-size: 13px; background: rgba(255,255,255,0.05);">
+                            <i class='bx bx-shield-quarter'></i> Admin
+                        </a>
+                        <a href="student.html" class="btn" style="flex: 1; font-size: 13px; background: rgba(255,255,255,0.05);">
+                            <i class='bx bx-user'></i> Student
+                        </a>
+                        <a href="https://malakapriyadarshana.lk" target="_blank" class="btn" style="flex: 1; font-size: 13px; background: rgba(16,185,129,0.08); color: var(--primary-color);">
+                            <i class='bx bx-globe'></i> Website
+                        </a>
+                    </div>
+
+                    <div class="mt-4">
+                        <button class="btn btn-danger" style="width: 100%" onclick="requestPasswordReset()">
+                            <i class='bx bx-reset'></i> Forgot Password? Request Reset
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===================== DASHBOARD VIEW ===================== -->
+    <div id="dashboard-view" class="dashboard-layout d-none">
+
+        <!-- ===== PC: Left Sidebar ===== -->
+        <aside class="pc-sidebar">
+            <div class="sidebar-brand">
+                <img src="MiniLogo.png" alt="Logo">
+                <div>
+                    <div class="brand-name">Zeon Opera</div>
+                    <div class="brand-sub">Horana Branch</div>
+                </div>
+            </div>
+
+            <nav class="sidebar-nav">
+                <a href="#" class="sidebar-link active" id="pc-link-scanner" onclick="switchTab('scanner'); return false;">
+                    <i class='bx bx-scan'></i>
+                    <span>Scanner</span>
+                </a>
+                <a href="#" class="sidebar-link" id="pc-link-reports" onclick="switchTab('reports'); return false;">
+                    <i class='bx bxs-file-pdf'></i>
+                    <span>Reports</span>
+                </a>
+                <a href="#" class="sidebar-link" id="pc-link-profile" onclick="switchTab('profile'); return false;">
+                    <i class='bx bx-user-circle'></i>
+                    <span>Profile</span>
+                </a>
+            </nav>
+
+            <div class="sidebar-footer">
+                <div class="sidebar-user">
+                    <img id="pc-user-avatar" src="https://via.placeholder.com/36" alt="Avatar">
+                    <span id="pc-user-name">User</span>
+                </div>
+                <button class="btn btn-danger sidebar-logout" onclick="logout()">
+                    <i class='bx bx-log-out'></i>
+                    <span>Logout</span>
+                </button>
+                <a href="https://malakapriyadarshana.lk" target="_blank" class="sidebar-website-link">
+                    <i class='bx bx-globe'></i> malakapriyadarshana.lk
+                </a>
+            </div>
+        </aside>
+
+        <!-- ===== Main Content Area ===== -->
+        <main class="dashboard-main">
+
+            <!-- Mobile Top Header -->
+            <header class="mobile-header">
+                <div class="mobile-header-brand">
+                    <img src="MiniLogo.png" alt="Logo">
+                    <div>
+                        <span class="brand-name">Zeon Opera</span>
+                        <span class="brand-sub">Horana</span>
+                    </div>
+                </div>
+                <div class="mobile-header-right">
+                    <span id="current-user-name" class="mobile-username"></span>
+                    <img id="mobile-user-avatar" src="https://via.placeholder.com/36" alt="Avatar" class="mobile-avatar" onclick="switchTab('profile')">
+                </div>
+            </header>
+
+            <!-- Content Sections -->
+            <div class="content-area">
+
+                <!-- Scanner Section -->
+                <div id="scanner-section">
+                    <div class="glass section-card">
+                        <h3 class="mb-4"><i class='bx bx-scan'></i> Scan Class Card</h3>
+
+                        <div class="input-group">
+                            <label>Select Paper Number</label>
+                            <select id="paper-select" onchange="toggleNoteField()">
+                                <!-- JS will populate -->
+                            </select>
+                        </div>
+
+                        <div id="note-group" class="input-group d-none">
+                            <label id="note-label">Additional Note</label>
+                            <input type="text" id="paper-note" placeholder="Type here...">
+                        </div>
+
+                        <div id="reader"></div>
+
+                        <div class="mt-4 text-center">
+                            <button id="start-scan-btn" class="btn btn-primary" style="width: 100%">
+                                <i class='bx bx-camera'></i> Start Scanner
+                            </button>
+                            <button id="stop-scan-btn" class="btn btn-danger d-none" style="width: 100%">
+                                <i class='bx bx-stop-circle'></i> Stop Scanner
+                            </button>
+                        </div>
+
+                        <div class="input-group mt-4">
+                            <label>Or enter ID manually:</label>
+                            <div style="display: flex; gap: 10px;">
+                                <input type="text" id="manual-id" placeholder="e.g. 241023" style="flex: 1;">
+                                <button class="btn btn-primary" onclick="processManualId()">Mark</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Profile Section -->
+                <div id="profile-section" class="d-none">
+                    <div class="glass section-card">
+                        <h3><i class='bx bx-user-circle'></i> Profile Settings</h3>
+
+                        <div class="text-center mt-4 mb-4">
+                            <div style="position: relative; display: inline-block;">
+                                <img id="current-profile-img" src="https://via.placeholder.com/100" style="width: 100px; height: 100px; border-radius: 50%; object-fit: cover; border: 3px solid var(--primary-color);">
+                                <label for="avatar-upload" style="position: absolute; bottom: 0; right: 0; background: var(--primary-color); width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; border: 2px solid var(--bg-color);">
+                                    <i class='bx bx-camera' style="color: white; font-size: 18px;"></i>
+                                </label>
+                                <input type="file" id="avatar-upload" accept="image/*" style="display: none;" onchange="uploadAvatar(this)">
+                            </div>
+                            <p class="text-muted mt-2" style="font-size: 12px;">Tap camera to change avatar</p>
+                        </div>
+
+                        <div class="input-group mt-4">
+                            <label>Change Password</label>
+                            <input type="password" id="old-pass" placeholder="Current Password">
+                            <input type="password" id="new-pass" placeholder="New Password" class="mt-4">
+                            <button class="btn btn-primary mt-4" onclick="changePassword()">Update Password</button>
+                        </div>
+
+                        <hr style="border-color: var(--border-color); margin: 20px 0;">
+
+                        <h4>Biometric Login</h4>
+                        <p class="text-muted" style="font-size: 14px; margin-bottom: 15px;">Enable Face ID, Touch ID, or Screen Lock</p>
+                        <button class="btn btn-primary w-100" onclick="setupBiometrics()">
+                            <i class='bx bx-fingerprint'></i> Setup Biometrics
+                        </button>
+                        <button class="btn btn-danger w-100 mt-4" onclick="removeBiometrics()">
+                            <i class='bx bx-trash'></i> Remove Biometrics
+                        </button>
+
+                        <button class="btn btn-danger w-100 mt-4" style="background: #ef4444;" onclick="logout()">
+                            <i class='bx bx-log-out'></i> Logout Account
+                        </button>
+                    </div>
+
+                    <div class="glass section-card mt-4" style="text-align: center;">
+                        <h3><i class='bx bx-qr-scan'></i> Student Registration QR</h3>
+                        <p class="text-muted" style="font-size: 13px; margin-bottom: 15px;">Students can scan this to update their details.</p>
+
+                        <div id="student-qr-display" style="background: white; padding: 15px; display: inline-block; border-radius: 12px; margin-bottom: 15px;"></div>
+
+                        <div style="display: flex; gap: 10px;">
+                            <input type="text" id="share-link" readonly style="flex: 1; background: rgba(0,0,0,0.2); border: 1px solid var(--border-color); color: var(--text-color); padding: 10px; border-radius: 8px; font-size: 12px;">
+                            <button class="btn btn-primary" onclick="copyShareLink()"><i class='bx bx-copy'></i></button>
+                        </div>
+                        <button class="btn btn-primary w-100 mt-4" onclick="downloadQR()">
+                            <i class='bx bx-download'></i> Download QR Code
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Reports Section -->
+                <div id="reports-section" class="d-none">
+                    <div class="glass section-card">
+                        <h3><i class='bx bxs-file-pdf'></i> Export Attendance Report</h3>
+                        <p class="text-muted mb-4" style="font-size: 13px;">Select papers and month to generate a marking checklist PDF.</p>
+
+                        <div class="input-group">
+                            <label>Filter by Month</label>
+                            <input type="month" id="export-month">
+                        </div>
+
+                        <div style="margin-bottom: 15px; display: flex; gap: 10px;">
+                            <button class="btn btn-primary" style="font-size: 12px; padding: 8px 12px;" onclick="selectAllPapers(true)">Select All</button>
+                            <button class="btn" style="font-size: 12px; padding: 8px 12px;" onclick="selectAllPapers(false)">Deselect All</button>
+                        </div>
+
+                        <div id="export-paper-grid" class="grid-cards" style="grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 8px; max-height: 250px; overflow-y: auto; padding: 10px; background: rgba(0,0,0,0.2); border-radius: 12px; margin-bottom: 20px;"></div>
+
+                        <button class="btn btn-primary w-100" onclick="generatePDF()">
+                            <i class='bx bxs-file-pdf'></i> Generate PDF Report
+                        </button>
+                    </div>
+
+                    <div class="table-container mt-4">
+                        <div class="flex-between mb-4">
+                            <h3>Detailed Attendance</h3>
+                            <button class="btn btn-primary" style="padding: 6px 12px;" onclick="loadReports()"><i class='bx bx-refresh'></i></button>
+                        </div>
+                        <div style="overflow-x: auto;">
+                            <table style="font-size: 13px;">
+                                <thead>
+                                    <tr>
+                                        <th>ID</th>
+                                        <th>Student Name</th>
+                                        <th>Paper</th>
+                                        <th>Time</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="detailed-attendance-table"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+            </div><!-- end content-area -->
+        </main>
+
+        <!-- ===== Mobile: Bottom Nav Bar ===== -->
+        <nav id="main-nav" class="mobile-nav">
+            <a href="#" class="mobile-nav-item active" id="mob-link-scanner" onclick="switchTab('scanner'); return false;">
+                <i class='bx bx-scan'></i>
+                <span>Scanner</span>
+            </a>
+            <a href="#" class="mobile-nav-item" id="mob-link-reports" onclick="switchTab('reports'); return false;">
+                <i class='bx bxs-file-pdf'></i>
+                <span>Reports</span>
+            </a>
+            <a href="#" class="mobile-nav-item" id="mob-link-profile" onclick="switchTab('profile'); return false;">
+                <i class='bx bx-user-circle'></i>
+                <span>Profile</span>
+            </a>
+            <a href="https://malakapriyadarshana.lk" target="_blank" class="mobile-nav-item">
+                <i class='bx bx-globe'></i>
+                <span>Website</span>
+            </a>
+        </nav>
+
+    </div><!-- end dashboard-layout -->
+
+    <!-- Force Change Password Modal -->
+    <div class="modal-overlay" id="force-pass-modal">
+        <div class="modal-content glass">
+            <h3>Welcome!</h3>
+            <p class="text-muted mt-4">Please set a new password to continue.</p>
+            <div class="input-group mt-4">
+                <input type="password" id="force-new-pass" placeholder="New Password">
+            </div>
+            <button class="btn btn-primary w-100 mt-4" style="width: 100%" onclick="saveNewPassword()">Save & Continue</button>
+        </div>
+    </div>
+
+    <!-- Success Modal -->
+    <div class="modal-overlay" id="success-modal" onclick="closeSuccessModal()">
+        <div class="modal-content glass text-center" style="border-color: var(--primary-color);">
+            <i class='bx bxs-check-circle' style="font-size: 80px; color: var(--primary-color);"></i>
+            <h2 class="mt-4">Success!</h2>
+            <p id="success-msg" class="mt-2" style="font-size: 18px;"></p>
+            <p class="text-muted mt-4" style="font-size: 12px;">Tap anywhere to close (Auto-closes in 5s)</p>
+        </div>
+    </div>
+
+    <!-- Toast -->
+    <div id="toast" class="toast">
+        <i class='bx bx-info-circle'></i>
+        <span id="toast-msg">Message</span>
+    </div>
+
+    <!-- Scripts -->
+    <script src="js/supabase-config.js"></script>
+    <script src="js/instructor.js"></script>
+    <script>
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('sw.js');
+        }
+    </script>
+</body>
+</html>

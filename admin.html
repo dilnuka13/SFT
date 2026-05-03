@@ -1,0 +1,511 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Admin Dashboard — Zeon Opera SFT</title>
+    <link rel="stylesheet" href="css/style.css">
+    <link href='https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css' rel='stylesheet'>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#10b981">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <link rel="icon" type="image/png" href="logo.png">
+    <link rel="apple-touch-icon" href="logo.png">
+    <style>
+        /* ---- Admin-specific overrides ---- */
+
+        /* Tab content visibility */
+        .tab-content { display: none; }
+        .tab-content.active { display: block; animation: fadeIn 0.3s ease; }
+
+        /* Stats grid */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 16px;
+            margin-bottom: 28px;
+        }
+        .stat-card {
+            padding: 22px;
+            border-radius: 18px;
+            background: linear-gradient(135deg, rgba(30,41,59,0.7), rgba(15,23,42,0.9));
+            border: 1px solid var(--border-color);
+            position: relative;
+            overflow: hidden;
+        }
+        .stat-card::before {
+            content: '';
+            position: absolute;
+            top: -20px; right: -20px;
+            width: 80px; height: 80px;
+            border-radius: 50%;
+            background: rgba(16,185,129,0.06);
+        }
+        .stat-card h4   { color: var(--text-muted); font-size: 13px; font-weight: 500; margin-bottom: 8px; }
+        .stat-card .val { font-size: 32px; font-weight: 800; color: var(--text-color); line-height: 1; }
+        .stat-card i    { position: absolute; top: 20px; right: 20px; font-size: 26px; color: var(--primary-color); opacity: 0.7; }
+
+        /* Table extras */
+        .avatar-img { width: 38px; height: 38px; border-radius: 10px; object-fit: cover; }
+        .highlight { background: rgba(16,185,129,0.25); color: white; padding: 0 2px; border-radius: 2px; font-weight: 600; }
+
+        /* Search box */
+        .search-box { position: relative; flex: 1; max-width: 360px; }
+        .search-box i { position: absolute; left: 13px; top: 50%; transform: translateY(-50%); color: var(--text-muted); }
+        .search-box input {
+            width: 100%;
+            padding: 11px 11px 11px 40px;
+            background: rgba(0,0,0,0.2);
+            border: 1px solid var(--border-color);
+            border-radius: 11px;
+            color: var(--text-color);
+            outline: none;
+            font-size: 14px;
+            font-family: 'Outfit', sans-serif;
+        }
+        .search-box input:focus { border-color: var(--primary-color); }
+
+        .table-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            gap: 16px;
+            flex-wrap: wrap;
+        }
+
+        /* Export paper grid */
+        .paper-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+            gap: 8px;
+            max-height: 380px;
+            overflow-y: auto;
+            padding: 12px;
+            background: rgba(0,0,0,0.2);
+            border-radius: 12px;
+            margin-bottom: 20px;
+        }
+        .paper-grid label {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 9px 12px;
+            border-radius: 10px;
+            background: rgba(255,255,255,0.03);
+            border: 1px solid var(--border-color);
+            cursor: pointer;
+            font-size: 12px;
+            transition: all 0.2s;
+        }
+        .paper-grid label:hover { background: rgba(16,185,129,0.08); border-color: rgba(16,185,129,0.3); }
+        .paper-grid input[type="checkbox"] { accent-color: var(--primary-color); width: 16px; height: 16px; flex-shrink: 0; }
+
+        /* Quick actions */
+        .quick-actions { display: flex; flex-direction: column; gap: 10px; margin-top: 16px; }
+
+        /* Sidebar badge */
+        .nav-badge {
+            margin-left: auto;
+            background: var(--danger-color);
+            color: white;
+            font-size: 10px;
+            font-weight: 700;
+            min-width: 18px;
+            height: 18px;
+            border-radius: 9px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0 4px;
+        }
+
+        /* Mobile-specific overrides */
+        @media (max-width: 768px) {
+            .stats-grid { grid-template-columns: 1fr 1fr; gap: 10px; }
+            .stat-card  { padding: 16px; }
+            .stat-card .val { font-size: 24px; }
+            .table-header { flex-direction: column; align-items: stretch; }
+            .search-box  { max-width: 100%; }
+            .table-container { padding: 16px; }
+            td, th { padding: 10px 8px; font-size: 12px; }
+            .avatar-img { width: 30px; height: 30px; }
+            /* hide less important columns on mobile */
+            .hide-mobile { display: none; }
+        }
+        @media (max-width: 380px) {
+            .stats-grid { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+
+<!-- ===================== ADMIN LOGIN ===================== -->
+<div class="app-login fade-in" id="admin-login-view">
+    <div class="login-box">
+        <div class="logo-container">
+            <img src="logo.png" alt="Logo">
+            <h2 class="mt-4" style="color: var(--primary-color);">Admin Portal</h2>
+            <p class="text-muted">Zeon Opera — Horana Branch</p>
+        </div>
+        <div class="glass login-card">
+            <h3 class="mb-4" style="font-size: 18px;"><i class='bx bx-shield-quarter' style="color: var(--primary-color);"></i> Secure Access</h3>
+            <div class="input-group">
+                <label>Admin Email</label>
+                <input type="email" id="admin-email" placeholder="admin@example.com">
+            </div>
+            <div class="input-group">
+                <label>Password</label>
+                <input type="password" id="admin-password" placeholder="••••••••"
+                    onkeydown="if(event.key==='Enter') adminLogin()">
+            </div>
+            <button class="btn btn-primary w-100 mt-4" onclick="adminLogin()">
+                <i class='bx bx-log-in'></i> Login to Dashboard
+            </button>
+            <div style="margin-top: 16px; text-align: center;">
+                <a href="index.html" style="font-size: 13px; color: var(--text-muted); text-decoration: none;">
+                    <i class='bx bx-arrow-back'></i> Back to Instructor Portal
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ===================== ADMIN DASHBOARD ===================== -->
+<div class="dashboard-layout d-none" id="admin-dashboard-view">
+
+    <!-- ===== PC Sidebar ===== -->
+    <aside class="pc-sidebar">
+        <div class="sidebar-brand">
+            <img src="MiniLogo.png" alt="Logo">
+            <div>
+                <div class="brand-name">Admin Panel</div>
+                <div class="brand-sub">Zeon Opera</div>
+            </div>
+        </div>
+
+        <nav class="sidebar-nav">
+            <a href="#" class="sidebar-link active" id="pc-link-dashboard" onclick="showTab('dashboard'); return false;">
+                <i class='bx bxs-dashboard'></i>
+                <span>Overview</span>
+            </a>
+            <a href="#" class="sidebar-link" id="pc-link-instructors" onclick="showTab('instructors'); return false;">
+                <i class='bx bx-user-voice'></i>
+                <span>Instructors</span>
+            </a>
+            <a href="#" class="sidebar-link" id="pc-link-students" onclick="showTab('students'); return false;">
+                <i class='bx bx-group'></i>
+                <span>Students</span>
+            </a>
+            <a href="#" class="sidebar-link" id="pc-link-export" onclick="showTab('export'); return false;">
+                <i class='bx bxs-file-pdf'></i>
+                <span>Export</span>
+            </a>
+            <a href="#" class="sidebar-link" id="pc-link-requests" onclick="showTab('requests'); return false;">
+                <i class='bx bx-bell'></i>
+                <span>Requests</span>
+                <span class="nav-badge" id="request-badge-sidebar" style="display:none;">0</span>
+            </a>
+        </nav>
+
+        <div class="sidebar-footer">
+            <button class="btn btn-danger sidebar-logout" onclick="adminLogout()">
+                <i class='bx bx-log-out'></i>
+                <span>Logout</span>
+            </button>
+            <a href="https://malakapriyadarshana.lk" target="_blank" class="sidebar-website-link">
+                <i class='bx bx-globe'></i> malakapriyadarshana.lk
+            </a>
+        </div>
+    </aside>
+
+    <!-- ===== Main Content ===== -->
+    <main class="dashboard-main">
+
+        <!-- Mobile Top Header -->
+        <header class="mobile-header">
+            <div class="mobile-header-brand">
+                <img src="MiniLogo.png" alt="Logo">
+                <div>
+                    <span class="brand-name">Admin Panel</span>
+                    <span class="brand-sub">Zeon Opera</span>
+                </div>
+            </div>
+            <button class="btn btn-danger" onclick="adminLogout()" style="padding: 7px 12px; font-size: 13px;">
+                <i class='bx bx-log-out'></i>
+            </button>
+        </header>
+
+        <div class="content-area">
+
+            <!-- === DASHBOARD TAB === -->
+            <div id="tab-dashboard" class="tab-content active">
+                <h2 class="mb-4">Dashboard Overview</h2>
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <i class='bx bx-user-pin'></i>
+                        <h4>Total Students</h4>
+                        <div class="val" id="stat-students">—</div>
+                    </div>
+                    <div class="stat-card">
+                        <i class='bx bx-scan'></i>
+                        <h4>Scanned Today</h4>
+                        <div class="val" id="stat-scans">—</div>
+                    </div>
+                    <div class="stat-card">
+                        <i class='bx bx-error-circle'></i>
+                        <h4>Reset Requests</h4>
+                        <div class="val" id="stat-requests">—</div>
+                    </div>
+                    <div class="stat-card">
+                        <i class='bx bx-user-voice'></i>
+                        <h4>Instructors</h4>
+                        <div class="val" id="stat-instructors">—</div>
+                    </div>
+                </div>
+
+                <div class="grid-2" style="gap: 20px;">
+                    <div class="table-container">
+                        <h3 style="margin-bottom: 16px;">Recent Scans</h3>
+                        <div style="overflow-x: auto;">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>ID</th>
+                                        <th>Paper</th>
+                                        <th>Time</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="recent-scans-table"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                    <div class="table-container">
+                        <h3 style="margin-bottom: 8px;">Quick Actions</h3>
+                        <div class="quick-actions">
+                            <button class="btn btn-primary" onclick="showTab('export')"><i class='bx bxs-file-pdf'></i> Generate Reports</button>
+                            <button class="btn" onclick="showAddInstructorModal()"><i class='bx bx-user-plus'></i> Add Instructor</button>
+                            <button class="btn" onclick="location.reload()"><i class='bx bx-refresh'></i> Refresh System</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- === INSTRUCTORS TAB === -->
+            <div id="tab-instructors" class="tab-content">
+                <div class="table-container">
+                    <div class="table-header">
+                        <h2>Instructors</h2>
+                        <button class="btn btn-primary" onclick="showAddInstructorModal()">
+                            <i class='bx bx-plus'></i> Add New
+                        </button>
+                    </div>
+                    <div style="overflow-x: auto;">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Instructor</th>
+                                    <th class="hide-mobile">Username</th>
+                                    <th>Status</th>
+                                    <th class="hide-mobile">Joined</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="instructor-list-table"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- === STUDENTS TAB === -->
+            <div id="tab-students" class="tab-content">
+                <div class="table-container">
+                    <div class="table-header">
+                        <h2>Student Directory</h2>
+                        <div class="search-box">
+                            <i class='bx bx-search'></i>
+                            <input type="text" id="student-search" placeholder="Search by name, ID or NIC..." onkeyup="filterStudents()">
+                        </div>
+                    </div>
+                    <div style="overflow-x: auto;">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Class ID</th>
+                                    <th>Full Name</th>
+                                    <th>Papers</th>
+                                    <th class="hide-mobile">NIC</th>
+                                    <th class="hide-mobile">Email</th>
+                                    <th>Action</th>
+                                </tr>
+                            </thead>
+                            <tbody id="student-list-table"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- === EXPORT TAB === -->
+            <div id="tab-export" class="tab-content">
+                <div class="table-container">
+                    <h2 style="margin-bottom: 8px;">Export Attendance List</h2>
+                    <p class="text-muted mb-4" style="font-size: 14px;">Select papers to include. The PDF shows which students wrote each paper with a tick mark.</p>
+
+                    <div style="display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin-bottom: 16px;">
+                        <button class="btn btn-primary" style="padding: 9px 16px;" onclick="selectAllPapers(true)">Select All</button>
+                        <button class="btn" style="padding: 9px 16px;" onclick="selectAllPapers(false)">Deselect All</button>
+                        <div class="input-group" style="margin: 0; flex: 1; min-width: 160px;">
+                            <input type="month" id="export-month" placeholder="Filter by Month">
+                        </div>
+                    </div>
+
+                    <div id="export-paper-grid" class="paper-grid"></div>
+
+                    <button class="btn btn-primary w-100" onclick="generatePDF()">
+                        <i class='bx bxs-file-pdf'></i> Generate Attendance PDF
+                    </button>
+                </div>
+            </div>
+
+            <!-- === REQUESTS TAB === -->
+            <div id="tab-requests" class="tab-content">
+                <div class="table-container">
+                    <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 20px;">
+                        <img src="logo.png" alt="Logo" style="width: 36px; height: 36px; border-radius: 8px;">
+                        <div>
+                            <h3 style="font-size: 16px;">Zeon Opera</h3>
+                            <p style="font-size: 11px; color: var(--text-muted);">Horana — Admin Panel</p>
+                        </div>
+                    </div>
+                    <div class="table-header">
+                        <h2>Pending Reset Requests</h2>
+                    </div>
+                    <div style="overflow-x: auto;">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Instructor</th>
+                                    <th class="hide-mobile">Requested</th>
+                                    <th>Status</th>
+                                    <th>Action</th>
+                                </tr>
+                            </thead>
+                            <tbody id="request-list-table"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+        </div><!-- end content-area -->
+    </main>
+
+    <!-- ===== Mobile Bottom Nav ===== -->
+    <nav class="mobile-nav">
+        <a href="#" class="mobile-nav-item active" id="mob-link-dashboard" onclick="showTab('dashboard'); return false;">
+            <i class='bx bxs-dashboard'></i>
+            <span>Dash</span>
+        </a>
+        <a href="#" class="mobile-nav-item" id="mob-link-instructors" onclick="showTab('instructors'); return false;">
+            <i class='bx bxs-user-voice'></i>
+            <span>Staff</span>
+        </a>
+        <a href="#" class="mobile-nav-item" id="mob-link-students" onclick="showTab('students'); return false;">
+            <i class='bx bxs-group'></i>
+            <span>Students</span>
+        </a>
+        <a href="#" class="mobile-nav-item" id="mob-link-export" onclick="showTab('export'); return false;">
+            <i class='bx bxs-file-pdf'></i>
+            <span>Export</span>
+        </a>
+        <a href="#" class="mobile-nav-item" id="mob-link-requests" onclick="showTab('requests'); return false;">
+            <i class='bx bx-bell'></i>
+            <span>Alerts</span>
+        </a>
+    </nav>
+
+</div><!-- end dashboard-layout -->
+
+<!-- Student Details Modal -->
+<div class="modal-overlay" id="student-details-modal">
+    <div class="modal-content glass" style="max-width: 580px; width: 95%;">
+        <button class="close-btn" onclick="document.getElementById('student-details-modal').classList.remove('active')">&times;</button>
+        <div class="flex-between mb-4">
+            <h2 id="modal-student-name">Student Name</h2>
+            <span class="badge badge-success" id="modal-student-id">SFT-000</span>
+        </div>
+        <div class="grid-2 mb-4">
+            <div class="glass" style="padding: 14px;">
+                <small class="text-muted">NIC</small>
+                <div id="modal-student-nic" style="font-weight: 600; margin-top: 4px;">-</div>
+            </div>
+            <div class="glass" style="padding: 14px;">
+                <small class="text-muted">Email</small>
+                <div id="modal-student-email" style="font-weight: 600; font-size: 12px; margin-top: 4px;">-</div>
+            </div>
+        </div>
+        <h3 style="margin-bottom: 12px;">Attendance History</h3>
+        <div style="max-height: 280px; overflow-y: auto;">
+            <table style="border-spacing: 0;">
+                <thead>
+                    <tr>
+                        <th>Paper</th>
+                        <th>Month</th>
+                        <th class="hide-mobile">Note</th>
+                        <th>Time</th>
+                    </tr>
+                </thead>
+                <tbody id="modal-attendance-table" style="font-size: 13px;"></tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Add Instructor Modal -->
+<div class="modal-overlay" id="add-instructor-modal">
+    <div class="modal-content glass">
+        <h3 style="margin-bottom: 20px;"><i class='bx bx-user-plus' style="color: var(--primary-color);"></i> Add Instructor</h3>
+        <div class="input-group">
+            <label>Full Name</label>
+            <input type="text" id="new-inst-name" placeholder="e.g. Malaka Priyadarshana">
+        </div>
+        <div class="input-group">
+            <label>Temporary Password</label>
+            <input type="text" id="new-inst-pass" value="1234">
+        </div>
+        <div class="input-group">
+            <label>Avatar</label>
+            <div style="display: flex; gap: 12px; align-items: center;">
+                <img id="new-inst-preview" src="https://api.dicebear.com/7.x/avataaars/svg?seed=new"
+                    style="width: 52px; height: 52px; border-radius: 12px; object-fit: cover; border: 2px solid var(--border-color);">
+                <label class="btn" style="flex: 1; cursor: pointer;">
+                    <i class='bx bx-upload'></i> Select Image
+                    <input type="file" id="new-inst-avatar-file" accept="image/*" style="display: none;" onchange="previewNewInstructorAvatar(this)">
+                </label>
+            </div>
+        </div>
+        <div style="display: flex; gap: 10px; margin-top: 20px;">
+            <button class="btn btn-primary" style="flex: 1;" onclick="addInstructor()"><i class='bx bx-check'></i> Save</button>
+            <button class="btn btn-danger" onclick="document.getElementById('add-instructor-modal').classList.remove('active')">Cancel</button>
+        </div>
+    </div>
+</div>
+
+<!-- Toast -->
+<div id="toast" class="toast">
+    <i class='bx bx-info-circle'></i>
+    <span id="toast-msg">Message</span>
+</div>
+
+<script src="js/supabase-config.js"></script>
+<script src="js/admin.js"></script>
+<script>
+    if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('sw.js');
+    }
+</script>
+</body>
+</html>

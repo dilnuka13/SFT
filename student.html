@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="si">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Student Portal — Zeon Opera SFT</title>
+    <link rel="stylesheet" href="css/style.css">
+    <link href='https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css' rel='stylesheet'>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#10b981">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <link rel="icon" type="image/png" href="logo.png">
+    <link rel="apple-touch-icon" href="logo.png">
+    <style>
+        /* ---- Student page specific styles ---- */
+
+        /* Full centered layout like login page */
+        .student-page {
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px 16px 40px;
+        }
+
+        /* Narrow card max-width for form content */
+        .student-card-wrap {
+            width: 100%;
+            max-width: 480px;
+        }
+
+        /* Top brand bar */
+        .student-topbar {
+            width: 100%;
+            max-width: 480px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 28px;
+        }
+        .student-topbar-brand {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .student-topbar-brand img { height: 36px; }
+        .student-topbar-brand .brand-name { font-weight: 700; font-size: 15px; line-height: 1.2; }
+        .student-topbar-brand .brand-sub  { font-size: 10px; color: var(--text-muted); display: block; }
+        .student-topbar-link {
+            font-size: 12px;
+            color: var(--primary-color);
+            text-decoration: none;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            padding: 6px 12px;
+            border-radius: 20px;
+            background: rgba(16,185,129,0.08);
+            transition: all 0.2s;
+        }
+        .student-topbar-link:hover { background: rgba(16,185,129,0.18); }
+
+        /* Section hero icon */
+        .hero-icon {
+            width: 64px;
+            height: 64px;
+            border-radius: 50%;
+            background: rgba(16,185,129,0.12);
+            border: 1px solid rgba(16,185,129,0.3);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 20px;
+        }
+        .hero-icon i { font-size: 30px; color: var(--primary-color); }
+
+        /* Profile card (after verified) */
+        .profile-card {
+            background: linear-gradient(135deg, rgba(16,185,129,0.12), rgba(15,23,42,0.6));
+            border: 1px solid rgba(16,185,129,0.3);
+            border-radius: 16px;
+            padding: 20px;
+            margin-bottom: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 12px;
+        }
+        .profile-card-name { font-size: 20px; font-weight: 700; line-height: 1.3; }
+        .profile-card-sub  { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+        .profile-card-id   {
+            font-size: 22px;
+            font-weight: 800;
+            color: var(--primary-color);
+            background: rgba(16,185,129,0.1);
+            padding: 8px 16px;
+            border-radius: 12px;
+            white-space: nowrap;
+        }
+
+        /* Info note box */
+        .info-note {
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+            background: rgba(16,185,129,0.05);
+            border: 1px dashed rgba(16,185,129,0.4);
+            border-radius: 12px;
+            padding: 14px;
+            margin-top: 16px;
+        }
+        .info-note i { font-size: 18px; color: var(--primary-color); flex-shrink: 0; margin-top: 1px; }
+        .info-note p  { font-size: 12px; color: var(--text-muted); line-height: 1.6; }
+
+        /* Divider with text */
+        .divider {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin: 20px 0;
+        }
+        .divider::before, .divider::after {
+            content: '';
+            flex: 1;
+            height: 1px;
+            background: var(--border-color);
+        }
+        .divider span { font-size: 12px; color: var(--text-muted); white-space: nowrap; }
+
+        /* Lock overlay on locked inputs */
+        .input-lock-wrap { position: relative; }
+        .input-lock-wrap .lock-icon {
+            position: absolute;
+            right: 14px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: var(--text-muted);
+            font-size: 16px;
+            display: none;
+        }
+
+        /* Card padding shortcut */
+        .card-pad { padding: 24px; }
+
+        @media (max-width: 600px) {
+            .card-pad { padding: 18px 16px; }
+            .profile-card { flex-direction: column; align-items: flex-start; }
+            .profile-card-id { font-size: 18px; }
+        }
+    </style>
+</head>
+<body>
+
+<div class="student-page fade-in">
+
+    <!-- Top Bar -->
+    <div class="student-topbar">
+        <div class="student-topbar-brand">
+            <img src="MiniLogo.png" alt="Logo">
+            <div>
+                <span class="brand-name">Zeon Opera</span>
+                <span class="brand-sub">Horana Branch</span>
+            </div>
+        </div>
+        <a href="https://malakapriyadarshana.lk" target="_blank" class="student-topbar-link">
+            <i class='bx bx-globe'></i> Website
+        </a>
+    </div>
+
+    <div class="student-card-wrap">
+
+        <!-- ========== SEARCH / VERIFY SECTION ========== -->
+        <div class="glass card-pad fade-in" id="search-section">
+            <div class="hero-icon">
+                <i class='bx bx-user-pin'></i>
+            </div>
+            <h2 class="text-center mb-4" style="font-size: 22px;">Student Verification</h2>
+            <p class="text-muted text-center mb-4" style="font-size: 14px; line-height: 1.6;">
+                Enter your Class ID to access your SFT student profile and update your credentials.
+            </p>
+
+            <div class="input-group">
+                <label>Class ID</label>
+                <input type="text" id="search-class-id" placeholder="e.g. 241023"
+                    style="text-align: center; font-size: 20px; font-weight: 700; letter-spacing: 2px;">
+            </div>
+            <button class="btn btn-primary w-100" onclick="searchStudent()">
+                <i class='bx bx-search-alt'></i> Verify &amp; Continue
+            </button>
+
+            <div class="divider"><span>OR</span></div>
+
+            <p class="text-muted text-center" style="font-size: 13px; margin-bottom: 12px;">New to Malaka Sir's Class?</p>
+            <button class="btn w-100" style="border: 1px dashed var(--primary-color); color: var(--primary-color); background: rgba(16,185,129,0.04);" onclick="showRegistration()">
+                <i class='bx bx-plus-circle'></i> Create New Student Profile
+            </button>
+
+            
+        </div>
+
+        <!-- ========== REGISTRATION SECTION ========== -->
+        <div class="glass card-pad d-none fade-in" id="registration-section">
+            <div class="flex-between mb-4">
+                <div>
+                    <h3 style="font-size: 20px;">New Registration</h3>
+                    <p class="text-muted" style="font-size: 13px; margin-top: 4px;">Scan your class card to begin</p>
+                </div>
+                <div style="background: rgba(16,185,129,0.1); border-radius: 12px; padding: 10px;">
+                    <i class='bx bx-id-card' style="font-size: 28px; color: var(--primary-color);"></i>
+                </div>
+            </div>
+
+            <div id="student-reader" style="width: 100%; border-radius: 14px; overflow: hidden; margin-bottom: 16px; border: 2px solid rgba(16,185,129,0.4);"></div>
+
+            <button id="reg-scan-btn" class="btn btn-primary w-100" onclick="startRegScanner()">
+                <i class='bx bx-scan'></i> Scan Class Card Barcode
+            </button>
+
+            <div class="input-group mt-4">
+                <label>Scanned Class ID</label>
+                <input type="text" id="reg-class-id" readonly placeholder="Scan your card to fill this"
+                    style="background: rgba(0,0,0,0.2); font-weight: 600; text-align: center; letter-spacing: 1px;">
+            </div>
+
+            <div id="reg-details" class="d-none">
+                <hr style="border: none; border-top: 1px solid var(--border-color); margin: 8px 0 20px;">
+                <h4 style="margin-bottom: 16px;"><i class='bx bx-user-check'></i> Personal Details</h4>
+
+                <div class="input-group">
+                    <label>First Name / මුල් නම</label>
+                    <input type="text" id="reg-first-name">
+                </div>
+                <div class="input-group">
+                    <label>Last Name / අග නම</label>
+                    <input type="text" id="reg-last-name">
+                </div>
+                <div class="input-group">
+                    <label>NIC Number</label>
+                    <input type="text" id="reg-nic" placeholder="e.g. 200123456789">
+                </div>
+                <div class="input-group">
+                    <label>Email Address</label>
+                    <input type="email" id="reg-email" placeholder="e.g. student@gmail.com">
+                </div>
+
+                <div class="info-note">
+                    <i class='bx bx-info-circle'></i>
+                    <p>NIC and Email can only be entered once and will be locked after saving.</p>
+                </div>
+
+                <button class="btn btn-primary w-100 mt-4" onclick="registerStudent()">
+                    <i class='bx bx-check-circle'></i> Complete Registration
+                </button>
+            </div>
+
+            <button class="btn w-100 mt-4" style="background: transparent;" onclick="location.reload()">
+                <i class='bx bx-arrow-back'></i> Back
+            </button>
+        </div>
+
+        <!-- ========== UPDATE / PROFILE SECTION ========== -->
+        <div class="d-none fade-in" id="update-section">
+
+            <!-- Profile Card -->
+            <div class="profile-card">
+                <div>
+                    <div class="profile-card-sub">Student Profile</div>
+                    <div class="profile-card-name" id="display-name">Student Name</div>
+                </div>
+                <div class="profile-card-id" id="display-id">SFT-000</div>
+            </div>
+
+            <!-- Edit Form -->
+            <div class="glass card-pad">
+                <h4 style="margin-bottom: 20px;"><i class='bx bx-edit-alt'></i> Edit Personal Information</h4>
+
+                <div class="input-group">
+                    <label>First Name / මුල් නම</label>
+                    <input type="text" id="first-name">
+                </div>
+                <div class="input-group">
+                    <label>Last Name / අග නම</label>
+                    <input type="text" id="last-name">
+                </div>
+
+                <hr style="border: none; border-top: 1px solid var(--border-color); margin: 4px 0 20px;">
+
+                <div class="input-group">
+                    <label>NIC Number</label>
+                    <div class="input-lock-wrap">
+                        <input type="text" id="nic" placeholder="e.g. 200123456789">
+                        <i id="nic-lock" class='bx bx-lock-alt lock-icon'></i>
+                    </div>
+                    <small id="nic-warning" class="text-muted" style="font-size: 12px;"></small>
+                </div>
+
+                <div class="input-group">
+                    <label>Email Address</label>
+                    <div class="input-lock-wrap">
+                        <input type="email" id="email" placeholder="e.g. student@gmail.com">
+                        <i id="email-lock" class='bx bx-lock-alt lock-icon'></i>
+                    </div>
+                    <small id="email-warning" class="text-muted" style="font-size: 12px;"></small>
+                </div>
+
+                <div class="info-note">
+                    <i class='bx bx-info-circle'></i>
+                    <p>NIC and Email can only be updated once. After saving, these fields will be locked for security.</p>
+                </div>
+
+                <button class="btn btn-primary w-100 mt-4" onclick="updateStudent()">
+                    <i class='bx bx-save'></i> Save Profile Updates
+                </button>
+
+                <button class="btn w-100 mt-4" style="background: transparent;" onclick="location.reload()">
+                    <i class='bx bx-chevron-left'></i> Cancel &amp; Exit
+                </button>
+            </div>
+        </div>
+
+    </div><!-- end student-card-wrap -->
+</div><!-- end student-page -->
+
+<!-- Toast -->
+<div id="toast" class="toast">
+    <i class='bx bx-info-circle'></i>
+    <span id="toast-msg">Message</span>
+</div>
+
+<script src="js/supabase-config.js"></script>
+<script src="js/student.js"></script>
+<script>
+    if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('sw.js');
+    }
+</script>
+</body>
+</html>
