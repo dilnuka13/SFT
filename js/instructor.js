@@ -1,5 +1,6 @@
 let currentInstructor = null;
 let html5QrCode = null;
+let isProcessingScan = false;
 
 // Populate Paper Selection
 const paperSelect = document.getElementById('paper-select');
@@ -425,8 +426,15 @@ function startScanner() {
         { facingMode: "environment" },
         { fps: 10, qrbox: { width: 250, height: 250 } },
         (decodedText) => {
+            if (isProcessingScan) return;
+            isProcessingScan = true;
+            
+            // Pause scanner to prevent double scans
+            if (html5QrCode && typeof html5QrCode.pause === 'function') {
+                try { html5QrCode.pause(); } catch(e) { console.error(e); }
+            }
+            
             markAttendance(decodedText);
-            // Optionally pause or vibrate
         },
         (errorMessage) => { /* ignore */ }
     ).catch(err => {
@@ -440,13 +448,17 @@ function stopScanner() {
         html5QrCode.stop().then(() => {
             document.getElementById('start-scan-btn').classList.remove('d-none');
             document.getElementById('stop-scan-btn').classList.add('d-none');
+            isProcessingScan = false; // Reset on stop
         }).catch(err => console.log(err));
     }
 }
 
 function processManualId() {
     const id = document.getElementById('manual-id').value;
-    if (id) markAttendance(id);
+    if (id) {
+        isProcessingScan = true; // Set flag for manual entry too if needed, or just call
+        markAttendance(id);
+    }
 }
 
 async function markAttendance(classId) {
@@ -454,68 +466,93 @@ async function markAttendance(classId) {
     const note = document.getElementById('paper-note').value;
     const month = new Date().toISOString().slice(0, 7); // YYYY-MM
 
-    // 1. Check if student exists, if not create
-    const { data: student, error: sError } = await supabaseClient.from('students').select('*').eq('class_id', classId).maybeSingle();
-    
-    if (!student) {
-        const { error: insertError } = await supabaseClient.from('students').insert([{ class_id: classId }]);
-        if (insertError) {
-            showToast(insertError.message, 'error');
+    try {
+        // 1. Check if student exists, if not create
+        const { data: student, error: sError } = await supabaseClient.from('students').select('*').eq('class_id', classId).maybeSingle();
+        
+        if (!student) {
+            const { error: insertError } = await supabaseClient.from('students').insert([{ class_id: classId }]);
+            if (insertError) {
+                showToast(insertError.message, 'error');
+                isProcessingScan = false;
+                if (html5QrCode && typeof html5QrCode.resume === 'function') {
+                    try { html5QrCode.resume(); } catch(e) {}
+                }
+                return;
+            }
+        }
+
+        // 2. Duplicate check — Prevent any student from marking the same paper twice
+        const { data: existing } = await supabaseClient
+            .from('attendance')
+            .select('id')
+            .eq('class_id', classId)
+            .eq('paper_number', paper)
+            .limit(1);
+        
+        if (existing && existing.length > 0) {
+            // Show Warning Modal
+            document.getElementById('warning-msg').innerText = `ID: ${classId}\n${paper}`;
+            document.getElementById('warning-modal').classList.add('active');
+            
+            if (navigator.vibrate) navigator.vibrate([100, 50, 100]);
             return;
         }
-    }
 
-    // 2. Duplicate check — Prevent any student from marking the same paper twice
-    const { data: existing } = await supabaseClient
-        .from('attendance')
-        .select('id')
-        .eq('class_id', classId)
-        .eq('paper_number', paper)
-        .limit(1);
-    
-    if (existing && existing.length > 0) {
-        // Show Warning Modal
-        document.getElementById('warning-msg').innerText = `ID: ${classId}\n${paper}`;
-        document.getElementById('warning-modal').classList.add('active');
-        
-        if (navigator.vibrate) navigator.vibrate([100, 50, 100]);
-        return;
-    }
+        // 3. Add attendance
+        const { error: aError } = await supabaseClient.from('attendance').insert([{
+            class_id: classId,
+            paper_number: paper,
+            note: note || null,
+            month: month,
+            scanned_by: currentInstructor.id
+        }]);
 
-    // 3. Add attendance
-    const { error: aError } = await supabaseClient.from('attendance').insert([{
-        class_id: classId,
-        paper_number: paper,
-        note: note || null,
-        month: month,
-        scanned_by: currentInstructor.id
-    }]);
+        if (aError) {
+            showToast(aError.message, 'error');
+            isProcessingScan = false;
+            if (html5QrCode && typeof html5QrCode.resume === 'function') {
+                try { html5QrCode.resume(); } catch(e) {}
+            }
+        } else {
+            // Show Success Popup
+            document.getElementById('success-msg').innerText = `Class ID: ${classId}\n${paper}`;
+            document.getElementById('success-modal').classList.add('active');
+            
+            // Clear Field
+            document.getElementById('manual-id').value = '';
+            
+            // Auto Close in 5s
+            setTimeout(() => {
+                closeSuccessModal();
+            }, 5000);
 
-    if (aError) {
-        showToast(aError.message, 'error');
-    } else {
-        // Show Success Popup
-        document.getElementById('success-msg').innerText = `Class ID: ${classId}\n${paper}`;
-        document.getElementById('success-modal').classList.add('active');
-        
-        // Clear Field
-        document.getElementById('manual-id').value = '';
-        
-        // Auto Close in 5s
-        setTimeout(() => {
-            closeSuccessModal();
-        }, 5000);
-
-        if (navigator.vibrate) navigator.vibrate(200);
+            if (navigator.vibrate) navigator.vibrate(200);
+        }
+    } catch (err) {
+        console.error("Attendance marking error:", err);
+        showToast("An unexpected error occurred", "error");
+        isProcessingScan = false;
+        if (html5QrCode && typeof html5QrCode.resume === 'function') {
+            try { html5QrCode.resume(); } catch(e) {}
+        }
     }
 }
 
 function closeSuccessModal() {
     document.getElementById('success-modal').classList.remove('active');
+    isProcessingScan = false;
+    if (html5QrCode && typeof html5QrCode.resume === 'function') {
+        try { html5QrCode.resume(); } catch(e) {}
+    }
 }
 
 function closeWarningModal() {
     document.getElementById('warning-modal').classList.remove('active');
+    isProcessingScan = false;
+    if (html5QrCode && typeof html5QrCode.resume === 'function') {
+        try { html5QrCode.resume(); } catch(e) {}
+    }
 }
 
 async function requestPasswordReset() {
