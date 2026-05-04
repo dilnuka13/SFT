@@ -3,7 +3,16 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>Paper Marking System - Instructor</title>
+    <title>SFT Paper Marking System - Zeon Opera</title>
+    <meta name="description" content="Professional Paper Management & Attendance System for Zeon Opera SFT Classes by Malaka Priyadarshana Sir.">
+    <meta name="author" content="Zeon Opera Horana">
+    
+    <!-- Open Graph / Social Media -->
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="SFT Paper Marking System">
+    <meta property="og:description" content="Mobile-optimized attendance and paper management system.">
+    <meta property="og:image" content="logo.png">
+
     <link rel="stylesheet" href="css/style.css">
     <!-- Boxicons -->
     <link href='https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css' rel='stylesheet'>
@@ -99,9 +108,17 @@
                     <i class='bx bx-scan'></i>
                     <span>Scanner</span>
                 </a>
+                <a href="#" class="sidebar-link" id="pc-link-attendance" onclick="switchTab('attendance'); return false;">
+                    <i class='bx bx-list-check'></i>
+                    <span>Attendance</span>
+                </a>
                 <a href="#" class="sidebar-link" id="pc-link-reports" onclick="switchTab('reports'); return false;">
                     <i class='bx bxs-file-pdf'></i>
                     <span>Reports</span>
+                </a>
+                <a href="#" class="sidebar-link" id="pc-link-papers" onclick="switchTab('papers'); return false;">
+                    <i class='bx bx-book-content'></i>
+                    <span>Papers</span>
                 </a>
                 <a href="#" class="sidebar-link" id="pc-link-profile" onclick="switchTab('profile'); return false;">
                     <i class='bx bx-user-circle'></i>
@@ -110,6 +127,15 @@
             </nav>
 
             <div class="sidebar-footer">
+                <!-- Remote Scanner QR (PC only) -->
+                <div id="pc-remote-scanner" class="glass" style="margin-bottom: 20px; padding: 12px; border-radius: 12px; text-align: center; border: 1px solid rgba(16,185,129,0.2);">
+                    <p style="font-size: 11px; color: var(--text-muted); margin-bottom: 8px;">REMOTE SCANNER</p>
+                    <div id="remote-scanner-qr" style="background: white; padding: 8px; border-radius: 8px; display: inline-block;"></div>
+                    <p id="remote-status" style="font-size: 10px; color: var(--text-muted); margin-top: 8px;">
+                        <i class='bx bx-mobile-alt'></i> Scan to connect phone
+                    </p>
+                </div>
+
                 <div class="sidebar-user">
                     <img id="pc-user-avatar" src="https://via.placeholder.com/36" alt="Avatar">
                     <span id="pc-user-name">User</span>
@@ -180,6 +206,63 @@
                     </div>
                 </div>
 
+                <!-- Attendance Section -->
+                <div id="attendance-section" class="d-none">
+                    <div class="table-container">
+                        <div class="flex-between mb-4">
+                            <h3><i class='bx bx-list-check'></i> Attendance Management</h3>
+                            <button class="btn btn-primary" style="padding: 6px 12px;" onclick="loadReports()"><i class='bx bx-refresh'></i></button>
+                        </div>
+                        <div style="overflow-x: auto;">
+                            <table style="font-size: 13px;">
+                                <thead>
+                                    <tr>
+                                        <th>ID</th>
+                                        <th>Student Name</th>
+                                        <th>Paper</th>
+                                        <th>Date / Time</th>
+                                        <th>Scanned By</th>
+                                        <th style="width: 80px;">Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="detailed-attendance-table"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Papers Section -->
+                <div id="papers-section" class="d-none">
+                    <div class="glass section-card">
+                        <div class="flex-between mb-4">
+                            <h3><i class='bx bx-book-content'></i> Paper Management</h3>
+                            <button class="btn btn-primary" style="padding:6px 14px; font-size:13px;" onclick="openAddPaperModal()">
+                                <i class='bx bx-plus'></i> Add Paper
+                            </button>
+                        </div>
+
+                        <div id="papers-loading" class="text-center" style="padding:20px 0; color:var(--text-muted); font-size:13px;">
+                            <i class='bx bx-loader-alt bx-spin'></i> Loading papers...
+                        </div>
+
+                        <div id="papers-table-wrap" style="display:none; overflow-x:auto;">
+                            <table style="font-size:12px;">
+                                <thead>
+                                    <tr>
+                                        <th style="width:32px;">#</th>
+                                        <th>Paper Name</th>
+                                        <th>Category</th>
+                                        <th>Code</th>
+                                        <th>Status</th>
+                                        <th style="width:40px;"></th>
+                                    </tr>
+                                </thead>
+                                <tbody id="papers-list"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- Profile Section -->
                 <div id="profile-section" class="d-none">
                     <div class="glass section-card">
@@ -234,39 +317,8 @@
                         </button>
                     </div>
 
-                    <!-- Paper Management -->
-                    <div class="glass section-card mt-4">
-                        <div class="flex-between mb-4">
-                            <h3><i class='bx bx-book-content'></i> Paper Management</h3>
-                            <button class="btn btn-primary" style="padding:6px 14px; font-size:13px;" onclick="openAddPaperModal()">
-                                <i class='bx bx-plus'></i> Add Paper
-                            </button>
-                        </div>
-
-                        <div id="papers-loading" class="text-center" style="padding:20px 0; color:var(--text-muted); font-size:13px;">
-                            <i class='bx bx-loader-alt bx-spin'></i> Loading papers...
-                        </div>
-
-                        <div id="papers-table-wrap" style="display:none; overflow-x:auto;">
-                            <table style="font-size:12px;">
-                                <thead>
-                                    <tr>
-                                        <th style="width:32px;">#</th>
-                                        <th>Paper Name</th>
-                                        <th>Category</th>
-                                        <th>Code</th>
-                                        <th>Status</th>
-                                        <th style="width:40px;"></th>
-                                    </tr>
-                                </thead>
-                                <tbody id="papers-list"></tbody>
-                            </table>
-                        </div>
-                    </div><!-- end Paper Management card -->
-
                 </div><!-- end profile-section -->
 
-                <!-- Reports Section -->
                 <div id="reports-section" class="d-none">
                     <div class="glass section-card">
                         <h3><i class='bx bxs-file-pdf'></i> Export Attendance Report</h3>
@@ -288,27 +340,6 @@
                             <i class='bx bxs-file-pdf'></i> Generate PDF Report
                         </button>
                     </div>
-
-                    <div class="table-container mt-4">
-                        <div class="flex-between mb-4">
-                            <h3>Detailed Attendance</h3>
-                            <button class="btn btn-primary" style="padding: 6px 12px;" onclick="loadReports()"><i class='bx bx-refresh'></i></button>
-                        </div>
-                        <div style="overflow-x: auto;">
-                            <table style="font-size: 13px;">
-                                <thead>
-                                    <tr>
-                                        <th>ID</th>
-                                        <th>Student Name</th>
-                                        <th>Paper</th>
-                                        <th>Date / Time</th>
-                                        <th>Scanned By</th>
-                                    </tr>
-                                </thead>
-                                <tbody id="detailed-attendance-table"></tbody>
-                            </table>
-                        </div>
-                    </div>
                 </div>
 
             </div><!-- end content-area -->
@@ -318,15 +349,23 @@
         <nav id="main-nav" class="mobile-nav">
             <a href="#" class="mobile-nav-item active" id="mob-link-scanner" onclick="switchTab('scanner'); return false;">
                 <i class='bx bx-scan'></i>
-                <span>Scanner</span>
+                <span>Scan</span>
+            </a>
+            <a href="#" class="mobile-nav-item" id="mob-link-attendance" onclick="switchTab('attendance'); return false;">
+                <i class='bx bx-list-check'></i>
+                <span>History</span>
             </a>
             <a href="#" class="mobile-nav-item" id="mob-link-reports" onclick="switchTab('reports'); return false;">
                 <i class='bx bxs-file-pdf'></i>
-                <span>Reports</span>
+                <span>PDF</span>
+            </a>
+            <a href="#" class="mobile-nav-item" id="mob-link-papers" onclick="switchTab('papers'); return false;">
+                <i class='bx bx-book-content'></i>
+                <span>Papers</span>
             </a>
             <a href="#" class="mobile-nav-item" id="mob-link-profile" onclick="switchTab('profile'); return false;">
                 <i class='bx bx-user-circle'></i>
-                <span>Profile</span>
+                <span>User</span>
             </a>
         </nav>
 
@@ -346,10 +385,27 @@
 
     <!-- Success Modal -->
     <div class="modal-overlay" id="success-modal" onclick="closeSuccessModal()">
-        <div class="modal-content glass text-center" style="border-color: var(--primary-color);">
-            <i class='bx bxs-check-circle' style="font-size: 80px; color: var(--primary-color);"></i>
-            <h2 class="mt-4">Success!</h2>
-            <p id="success-msg" class="mt-2" style="font-size: 18px;"></p>
+        <div class="modal-content glass text-center" style="border-color: var(--primary-color); max-width: 400px;">
+            <i class='bx bxs-check-circle' style="font-size: 60px; color: var(--primary-color);"></i>
+            <h2 class="mt-2" style="color: var(--primary-color);">Attendance Marked!</h2>
+            
+            <div class="glass mt-4" style="background: rgba(16,185,129,0.05); padding: 15px; border-radius: 12px; text-align: left; border: 1px solid rgba(16,185,129,0.2);">
+                <div style="margin-bottom: 8px;">
+                    <span class="text-muted" style="font-size: 11px;">STUDENT NAME</span>
+                    <div id="success-student-name" style="font-weight: 700; font-size: 18px;">—</div>
+                </div>
+                <div style="display: flex; gap: 20px;">
+                    <div style="flex: 1;">
+                        <span class="text-muted" style="font-size: 11px;">CLASS ID</span>
+                        <div id="success-student-id" style="font-weight: 600; color: var(--primary-color);">—</div>
+                    </div>
+                    <div style="flex: 1;">
+                        <span class="text-muted" style="font-size: 11px;">PAPER</span>
+                        <div id="success-paper-num" style="font-weight: 600;">—</div>
+                    </div>
+                </div>
+            </div>
+
             <p class="text-muted mt-4" style="font-size: 12px;">Tap anywhere to close (Auto-closes in 5s)</p>
         </div>
     </div>
@@ -394,6 +450,81 @@
                     <i class='bx bx-check'></i> Save Paper
                 </button>
                 <button class="btn btn-danger" onclick="closeAddPaperModal()">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Edit Attendance Modal -->
+    <div class="modal-overlay" id="edit-attendance-modal">
+        <div class="modal-content glass" style="max-width:400px;">
+            <button class="close-btn" onclick="closeEditAttendanceModal()">&times;</button>
+            <h3 class="mb-4"><i class='bx bx-edit' style="color: var(--primary-color);"></i> Edit Attendance</h3>
+            
+            <div class="input-group">
+                <label>Student ID</label>
+                <input type="text" id="edit-att-id" readonly style="background: rgba(0,0,0,0.2);">
+            </div>
+
+            <div class="input-group">
+                <label>Change Paper</label>
+                <select id="edit-att-paper">
+                    <!-- Populated by JS -->
+                </select>
+            </div>
+
+            <div class="input-group">
+                <label>Note</label>
+                <input type="text" id="edit-att-note" placeholder="Optional note">
+            </div>
+
+            <input type="hidden" id="edit-att-row-id">
+
+            <div style="display: flex; gap: 10px; margin-top: 20px;">
+                <button class="btn btn-primary" style="flex: 1;" onclick="saveEditedAttendance()">
+                    <i class='bx bx-save'></i> Save Changes
+                </button>
+                <button class="btn btn-danger" onclick="closeEditAttendanceModal()">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Student Info Modal -->
+    <div class="modal-overlay" id="student-info-modal">
+        <div class="modal-content glass" style="max-width:400px; text-align: center;">
+            <button class="close-btn" onclick="closeStudentInfoModal()">&times;</button>
+            <div id="student-info-found">
+                <div style="margin-bottom: 20px;">
+                    <i class='bx bx-user-pin' style="font-size: 60px; color: var(--primary-color);"></i>
+                </div>
+                <h2 id="info-student-name">Student Name</h2>
+                <p id="info-student-id" class="text-muted" style="font-size: 18px; font-weight: 600; color: var(--primary-color);"></p>
+                
+                <div class="glass" style="background: rgba(255,255,255,0.03); padding: 15px; border-radius: 12px; margin-top: 20px; text-align: left;">
+                    <div style="margin-bottom: 10px;">
+                        <span class="text-muted" style="font-size: 12px;">NIC:</span>
+                        <div id="info-student-nic" style="font-weight: 500;">—</div>
+                    </div>
+                    <div>
+                        <span class="text-muted" style="font-size: 12px;">Email:</span>
+                        <div id="info-student-email" style="font-weight: 500;">—</div>
+                    </div>
+                </div>
+
+                <button class="btn btn-primary w-100 mt-4" onclick="closeStudentInfoModal()">Close</button>
+            </div>
+
+            <div id="student-info-not-found" class="d-none">
+                <div style="margin-bottom: 20px;">
+                    <i class='bx bx-user-x' style="font-size: 60px; color: var(--danger-color);"></i>
+                </div>
+                <h2 style="color: var(--danger-color);">Account Not Found</h2>
+                <p class="mt-2">මෙම Class ID එකට අඳාල ගිණුමක් පද්ධතියේ නැත.</p>
+                <p class="text-muted mt-2" style="font-size: 13px;">කරුණාකර ශිෂ්‍යයා ලියාපදිංචි වීමට යොමු කරන්න.</p>
+                
+                <button class="btn btn-primary w-100 mt-4" onclick="copyShareLink()">
+                    <i class='bx bx-share-alt'></i> Share Registration Link
+                </button>
+                <button class="btn btn-danger w-100 mt-2" onclick="closeStudentInfoModal()">Close</button>
             </div>
         </div>
     </div>

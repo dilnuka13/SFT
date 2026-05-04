@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="si">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Remote Scanner - Zeon Opera SFT</title>
+    <meta name="description" content="Use your smartphone as a remote scanner for the Zeon Opera SFT Paper Management System.">
+    <meta name="author" content="Zeon Opera Horana">
+    <meta name="robots" content="noindex, nofollow">
+    <link rel="stylesheet" href="css/style.css">
+    <link href='https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css' rel='stylesheet'>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
+    <style>
+        body { background: #020617; color: white; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; margin: 0; padding: 20px; box-sizing: border-box; }
+        .scanner-box { width: 100%; max-width: 400px; text-align: center; }
+        #reader { width: 100%; border-radius: 20px; overflow: hidden; border: 2px solid var(--primary-color); }
+        .status { margin-top: 20px; font-size: 14px; color: var(--text-muted); }
+        .btn-stop { background: var(--danger-color); color: white; border: none; padding: 12px 24px; border-radius: 12px; margin-top: 20px; cursor: pointer; width: 100%; font-weight: 600; }
+        .header { margin-bottom: 30px; text-align: center; }
+        .header img { width: 60px; margin-bottom: 10px; }
+    </style>
+</head>
+<body>
+    <div class="scanner-box">
+        <div class="header">
+            <img src="logo.png" alt="Logo">
+            <h2>Remote Scanner</h2>
+            <p id="instructor-name" style="color: var(--primary-color);">Connecting...</p>
+        </div>
+
+        <div id="reader"></div>
+        
+        <div class="status" id="connection-status">
+            <i class='bx bx-loader-alt bx-spin'></i> Initializing Realtime...
+        </div>
+
+        <button id="start-btn" class="btn btn-primary w-100" style="margin-top:20px;" onclick="startRemoteScanner()">
+            <i class='bx bx-camera'></i> Start Camera
+        </button>
+        <button id="stop-btn" class="btn-stop d-none" onclick="stopRemoteScanner()">
+            <i class='bx bx-stop-circle'></i> Stop Camera
+        </button>
+    </div>
+
+    <div id="toast" class="toast">
+        <i class='bx bx-info-circle'></i>
+        <span id="toast-msg">Message</span>
+    </div>
+
+    <script src="js/supabase-config.js"></script>
+    <script>
+        const urlParams = new URLSearchParams(window.location.search);
+        const instructorId = urlParams.get('id');
+        let html5QrCode = null;
+        let channel = null;
+        let isProcessing = false;
+
+        if (!instructorId) {
+            alert("No instructor ID provided. Use the QR code from the PC dashboard.");
+            window.close();
+        }
+
+        // Initialize Realtime Channel
+        channel = supabaseClient.channel(`scanner:${instructorId}`, {
+            config: { broadcast: { self: true } }
+        });
+
+        channel
+            .on('broadcast', { event: 'ping' }, () => {
+                showToast("PC Connected!");
+            })
+            .subscribe((status) => {
+                if (status === 'SUBSCRIBED') {
+                    document.getElementById('connection-status').innerHTML = "<i class='bx bxs-check-circle' style='color:var(--primary-color)'></i> Ready to scan";
+                    document.getElementById('instructor-name').innerText = "Connected to PC";
+                    // Send join message
+                    channel.send({ type: 'broadcast', event: 'join', payload: { device: 'phone' } });
+                }
+            });
+
+        function startRemoteScanner() {
+            document.getElementById('start-btn').classList.add('d-none');
+            document.getElementById('stop-btn').classList.remove('d-none');
+            
+            html5QrCode = new Html5Qrcode("reader");
+            html5QrCode.start(
+                { facingMode: "environment" },
+                { fps: 10, qrbox: { width: 250, height: 250 } },
+                (decodedText) => {
+                    if (isProcessing) return;
+                    isProcessing = true;
+                    
+                    // Vibrate
+                    if (navigator.vibrate) navigator.vibrate(100);
+                    
+                    // Send to PC
+                    channel.send({
+                        type: 'broadcast',
+                        event: 'scan',
+                        payload: { classId: decodedText }
+                    });
+
+                    showToast(`Sent: ${decodedText}`);
+
+                    // Throttle scans
+                    setTimeout(() => { isProcessing = false; }, 2000);
+                },
+                (errorMessage) => {}
+            ).catch(err => {
+                showToast("Camera error: " + err, "error");
+                stopRemoteScanner();
+            });
+        }
+
+        function stopRemoteScanner() {
+            if (html5QrCode) {
+                html5QrCode.stop().then(() => {
+                    document.getElementById('start-btn').classList.remove('d-none');
+                    document.getElementById('stop-btn').classList.add('d-none');
+                }).catch(err => console.log(err));
+            }
+        }
+    </script>
+</body>
+</html>

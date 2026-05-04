@@ -256,14 +256,15 @@ async function registerStudent() {
         return;
     }
 
-    // Check if ID already exists
-    const { data: existing } = await supabaseClient.from('students').select('class_id').eq('class_id', classId).maybeSingle();
-    if (existing) {
-        showToast('This Class ID is already registered!', 'error');
+    // Check if ID already exists and is fully registered
+    const { data: existing } = await supabaseClient.from('students').select('*').eq('class_id', classId).maybeSingle();
+    
+    if (existing && (existing.first_name || existing.last_name || existing.nic)) {
+        showToast('This Class ID is already registered! Please use the Verification option to view/edit.', 'error');
         return;
     }
 
-    const { error } = await supabaseClient.from('students').insert([{
+    const studentData = {
         class_id:     classId,
         first_name:   firstName,
         last_name:    lastName,
@@ -272,7 +273,9 @@ async function registerStudent() {
         name_edited:  true,
         nic_edited:   true,
         email_edited: true
-    }]);
+    };
+
+    const { error } = await supabaseClient.from('students').upsert([studentData]);
 
     if (error) {
         showToast(error.message, 'error');

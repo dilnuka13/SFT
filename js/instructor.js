@@ -178,6 +178,9 @@ function enterDashboard() {
     // Sync username
     document.getElementById('current-user-name').innerText = currentInstructor.name;
     document.getElementById('pc-user-name').innerText = currentInstructor.name;
+
+    // Remote Scanner Setup (PC Only)
+    setupRemoteScanner();
 }
 
 function generateStudentQR(url) {
@@ -191,6 +194,50 @@ function generateStudentQR(url) {
         colorLight: "#ffffff",
         correctLevel: QRCode.CorrectLevel.H
     });
+}
+
+let remoteChannel = null;
+function setupRemoteScanner() {
+    const qrContainer = document.getElementById('remote-scanner-qr');
+    if (!qrContainer) return; // Not on PC/sidebar not present
+
+    // 1. Generate URL
+    const baseUrl = window.location.href.split('index.html')[0];
+    const remoteUrl = `${baseUrl}remote-scanner.html?id=${currentInstructor.id}`;
+    
+    // 2. Generate QR
+    qrContainer.innerHTML = '';
+    new QRCode(qrContainer, {
+        text: remoteUrl,
+        width: 100,
+        height: 100,
+        colorDark: "#000000",
+        colorLight: "#ffffff"
+    });
+
+    // 3. Setup Realtime
+    if (remoteChannel) remoteChannel.unsubscribe();
+
+    remoteChannel = supabaseClient.channel(`scanner:${currentInstructor.id}`, {
+        config: { broadcast: { self: false } }
+    });
+
+    remoteChannel
+        .on('broadcast', { event: 'join' }, (payload) => {
+            document.getElementById('remote-status').innerHTML = `<i class='bx bxs-circle' style='color:var(--primary-color); font-size:8px;'></i> Phone Connected`;
+            showToast("Phone connected for remote scanning!");
+            // Send acknowledgement
+            remoteChannel.send({ type: 'broadcast', event: 'ping' });
+        })
+        .on('broadcast', { event: 'scan' }, (payload) => {
+            const classId = payload.payload.classId;
+            if (classId) {
+                // If we are in scanner tab, we might want to show feedback
+                // But markAttendance handles its own modals.
+                markAttendance(classId);
+            }
+        })
+        .subscribe();
 }
 
 // ── QR Card helpers ───────────────────────────────────────
@@ -389,23 +436,31 @@ function switchTab(tab) {
     const mobLink = document.getElementById(`mob-link-${tab}`);
     if (mobLink) mobLink.classList.add('active');
 
-    // Show/hide sections
+    // Hide all sections first
+    const sections = ['scanner', 'attendance', 'reports', 'papers', 'profile'];
+    sections.forEach(s => {
+        const el = document.getElementById(`${s}-section`);
+        if (el) el.classList.add('d-none');
+    });
+
+    // Show selected section
+    const targetEl = document.getElementById(`${tab}-section`);
+    if (targetEl) targetEl.classList.remove('d-none');
+
+    // Handle section-specific logic
     if (tab === 'scanner') {
-        document.getElementById('scanner-section').classList.remove('d-none');
-        document.getElementById('reports-section').classList.add('d-none');
-        document.getElementById('profile-section').classList.add('d-none');
-    } else if (tab === 'reports') {
-        document.getElementById('scanner-section').classList.add('d-none');
-        document.getElementById('reports-section').classList.remove('d-none');
-        document.getElementById('profile-section').classList.add('d-none');
+        // no-op, maybe start scanner?
+    } else if (tab === 'attendance') {
         loadReports();
         stopScanner();
-    } else {
-        document.getElementById('scanner-section').classList.add('d-none');
-        document.getElementById('reports-section').classList.add('d-none');
-        document.getElementById('profile-section').classList.remove('d-none');
+    } else if (tab === 'reports') {
+        stopScanner();
+        loadPapers(); // Refresh papers for export grid
+    } else if (tab === 'papers') {
         stopScanner();
         loadPapers();
+    } else {
+        stopScanner();
     }
 }
 
@@ -448,7 +503,7 @@ function stopScanner() {
         html5QrCode.stop().then(() => {
             document.getElementById('start-scan-btn').classList.remove('d-none');
             document.getElementById('stop-scan-btn').classList.add('d-none');
-            isProcessingScan = false; // Reset on stop
+            isProcessingScan = false;
         }).catch(err => console.log(err));
     }
 }
@@ -470,8 +525,16 @@ async function markAttendance(classId) {
         // 1. Check if student exists, if not create
         const { data: student, error: sError } = await supabaseClient.from('students').select('*').eq('class_id', classId).maybeSingle();
         
-        if (!student) {
-            const { error: insertError } = await supabaseClient.from('students').insert([{ class_id: classId }]);
+        let studentObj = student;
+
+        if (!studentObj) {
+            // Auto-create student with just Class ID
+            const { data: newStudent, error: insertError } = await supabaseClient
+                .from('students')
+                .insert([{ class_id: classId }])
+                .select()
+                .single();
+            
             if (insertError) {
                 showToast(insertError.message, 'error');
                 isProcessingScan = false;
@@ -480,6 +543,7 @@ async function markAttendance(classId) {
                 }
                 return;
             }
+            studentObj = newStudent;
         }
 
         // 2. Duplicate check — Prevent any student from marking the same paper twice
@@ -515,8 +579,10 @@ async function markAttendance(classId) {
                 try { html5QrCode.resume(); } catch(e) {}
             }
         } else {
-            // Show Success Popup
-            document.getElementById('success-msg').innerText = `Class ID: ${classId}\n${paper}`;
+            // Show Success Popup with Student Details
+            document.getElementById('success-student-name').innerText = `${studentObj.first_name || ''} ${studentObj.last_name || ''}`.trim() || 'New Student (Not Registered)';
+            document.getElementById('success-student-id').innerText = classId;
+            document.getElementById('success-paper-num').innerText = paper;
             document.getElementById('success-modal').classList.add('active');
             
             // Clear Field
@@ -552,6 +618,65 @@ function closeWarningModal() {
     isProcessingScan = false;
     if (html5QrCode && typeof html5QrCode.resume === 'function') {
         try { html5QrCode.resume(); } catch(e) {}
+    }
+}
+
+function closeStudentInfoModal() {
+    document.getElementById('student-info-modal').classList.remove('active');
+    isProcessingScan = false;
+    if (html5QrCode && typeof html5QrCode.resume === 'function') {
+        try { html5QrCode.resume(); } catch(e) {}
+    }
+}
+
+async function deleteAttendance(id) {
+    if (!confirm('Are you sure you want to delete this attendance record?')) return;
+
+    const { error } = await supabaseClient.from('attendance').delete().eq('id', id);
+    if (error) {
+        showToast(error.message, 'error');
+    } else {
+        showToast('Record deleted');
+        loadReports();
+    }
+}
+
+let editingAttendanceId = null;
+async function openEditAttendanceModal(id, classId, paper, note) {
+    editingAttendanceId = id;
+    document.getElementById('edit-att-id').value = classId;
+    document.getElementById('edit-att-note').value = note || '';
+    
+    // Populate paper select in modal
+    const editSelect = document.getElementById('edit-att-paper');
+    let papers = _allPapers.filter(p => p.is_active);
+    editSelect.innerHTML = papers.map(p =>
+        `<option value="${p.paper_number}" ${p.paper_number === paper ? 'selected' : ''}>${p.paper_number}</option>`
+    ).join('');
+
+    document.getElementById('edit-attendance-modal').classList.add('active');
+}
+
+function closeEditAttendanceModal() {
+    document.getElementById('edit-attendance-modal').classList.remove('active');
+    editingAttendanceId = null;
+}
+
+async function saveEditedAttendance() {
+    const newPaper = document.getElementById('edit-att-paper').value;
+    const newNote = document.getElementById('edit-att-note').value;
+
+    const { error } = await supabaseClient.from('attendance').update({
+        paper_number: newPaper,
+        note: newNote || null
+    }).eq('id', editingAttendanceId);
+
+    if (error) {
+        showToast(error.message, 'error');
+    } else {
+        showToast('Attendance updated');
+        closeEditAttendanceModal();
+        loadReports();
     }
 }
 
@@ -741,8 +866,10 @@ async function loadReports() {
     const { data, error } = await supabaseClient
         .from('attendance')
         .select(`
+            id,
             class_id,
             paper_number,
+            note,
             scanned_at,
             scanned_by,
             students (
@@ -779,6 +906,16 @@ async function loadReports() {
                 <div style="display:flex; align-items:center; gap:5px;">
                     <i class='bx bx-user-voice' style="color:var(--primary-color); font-size:13px;"></i>
                     <span>${instructorName}</span>
+                </div>
+            </td>
+            <td>
+                <div style="display: flex; gap: 5px;">
+                    <button class="btn btn-primary" style="padding: 4px 8px; font-size: 12px;" onclick="openEditAttendanceModal('${row.id}', '${row.class_id}', '${row.paper_number}', '${row.note || ''}')">
+                        <i class='bx bx-edit'></i>
+                    </button>
+                    <button class="btn btn-danger" style="padding: 4px 8px; font-size: 12px;" onclick="deleteAttendance('${row.id}')">
+                        <i class='bx bx-trash'></i>
+                    </button>
                 </div>
             </td>
         </tr>`;

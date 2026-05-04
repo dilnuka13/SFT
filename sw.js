@@ -1,9 +1,10 @@
-const CACHE_NAME = 'sft-paper-v1';
+const CACHE_NAME = 'sft-paper-v1.1';
 const ASSETS = [
   './',
   './index.html',
   './admin.html',
   './student.html',
+  './remote-scanner.html',
   './css/style.css',
   './js/supabase-config.js',
   './js/instructor.js',
