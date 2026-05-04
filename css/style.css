@@ -241,20 +241,6 @@ body {
     font-size: 14px;
 }
 
-.sidebar-website-link {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 6px;
-    font-size: 11px;
-    color: var(--primary-color);
-    text-decoration: none;
-    padding: 6px;
-    border-radius: 8px;
-    background: rgba(16,185,129,0.06);
-    transition: all 0.2s;
-}
-.sidebar-website-link:hover { background: rgba(16,185,129,0.15); }
 
 /* ==============================
    MAIN CONTENT (PC)

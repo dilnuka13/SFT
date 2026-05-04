@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="si">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
@@ -17,7 +17,6 @@
     <style>
         /* ---- Student page specific styles ---- */
 
-        /* Full centered layout like login page */
         .student-page {
             min-height: 100vh;
             display: flex;
@@ -26,7 +25,6 @@
             padding: 20px 16px 40px;
         }
 
-        /* Narrow card max-width for form content */
         .student-card-wrap {
             width: 100%;
             max-width: 480px;
@@ -77,7 +75,7 @@
         }
         .hero-icon i { font-size: 30px; color: var(--primary-color); }
 
-        /* Profile card (after verified) */
+        /* Profile card */
         .profile-card {
             background: linear-gradient(135deg, rgba(16,185,129,0.12), rgba(15,23,42,0.6));
             border: 1px solid rgba(16,185,129,0.3);
@@ -113,7 +111,30 @@
             margin-top: 16px;
         }
         .info-note i { font-size: 18px; color: var(--primary-color); flex-shrink: 0; margin-top: 1px; }
-        .info-note p  { font-size: 12px; color: var(--text-muted); line-height: 1.6; }
+        .info-note p  { font-size: 12px; color: var(--text-muted); line-height: 1.7; }
+
+        /* Sinhala subtitle under English text */
+        .si {
+            display: block;
+            font-size: 10px;
+            color: var(--text-muted);
+            font-weight: 400;
+            margin-top: 2px;
+            opacity: 0.75;
+            font-family: Arial, sans-serif;
+        }
+        /* For headings */
+        h2 .si, h3 .si, h4 .si { font-size: 11px; }
+
+        /* Label with Sinhala sub */
+        .input-group label .si { margin-top: 1px; }
+
+        /* Bilingual button sub */
+        .btn .si {
+            font-size: 9px;
+            margin-top: 1px;
+            opacity: 0.7;
+        }
 
         /* Divider with text */
         .divider {
@@ -177,36 +198,53 @@
             <div class="hero-icon">
                 <i class='bx bx-user-pin'></i>
             </div>
-            <h2 class="text-center mb-4" style="font-size: 22px;">Student Verification</h2>
-            <p class="text-muted text-center mb-4" style="font-size: 14px; line-height: 1.6;">
+
+            <h2 class="text-center mb-4" style="font-size: 22px;">
+                Student Verification
+                <span class="si">ශිෂ්‍ය සත්‍යාපනය</span>
+            </h2>
+            <p class="text-muted text-center mb-4" style="font-size: 14px; line-height: 1.7;">
                 Enter your Class ID to access your SFT student profile and update your credentials.
+                <span class="si" style="font-size: 12px; margin-top: 4px;">ඔබේ Class ID ඇතුළත් කර ශිෂ්‍ය profile ලබා ගන්න.</span>
             </p>
 
             <div class="input-group">
-                <label>Class ID</label>
+                <label>
+                    Class ID
+                    <span class="si">පන්ති හැඳුනුම් අංකය</span>
+                </label>
                 <input type="text" id="search-class-id" placeholder="e.g. 241023"
                     style="text-align: center; font-size: 20px; font-weight: 700; letter-spacing: 2px;">
             </div>
-            <button class="btn btn-primary w-100" onclick="searchStudent()">
-                <i class='bx bx-search-alt'></i> Verify &amp; Continue
+
+            <button class="btn btn-primary w-100" onclick="searchStudent()" style="flex-direction: column; gap: 2px; padding: 14px;">
+                <span><i class='bx bx-search-alt'></i> Verify &amp; Continue</span>
+                <span class="si">සත්‍යාපනය කර ඉදිරියට යන්න</span>
             </button>
 
-            <div class="divider"><span>OR</span></div>
+            <div class="divider"><span>OR / හෝ</span></div>
 
-            <p class="text-muted text-center" style="font-size: 13px; margin-bottom: 12px;">New to Malaka Sir's Class?</p>
-            <button class="btn w-100" style="border: 1px dashed var(--primary-color); color: var(--primary-color); background: rgba(16,185,129,0.04);" onclick="showRegistration()">
-                <i class='bx bx-plus-circle'></i> Create New Student Profile
+            <p class="text-muted text-center" style="font-size: 13px; margin-bottom: 4px;">New to Malaka Sir's Class?</p>
+            <p class="text-muted text-center si" style="font-size: 11px; margin-bottom: 12px;">මාලක සර්ගේ ක්ලාස් එකට නවකයෙක්ද?</p>
+
+            <button class="btn w-100" style="border: 1px dashed var(--primary-color); color: var(--primary-color); background: rgba(16,185,129,0.04); flex-direction: column; gap: 2px; padding: 14px;" onclick="showRegistration()">
+                <span><i class='bx bx-plus-circle'></i> Create New Student Profile</span>
+                <span class="si">නව ශිෂ්‍ය ගිණුමක් සාදන්න</span>
             </button>
-
-            
         </div>
 
         <!-- ========== REGISTRATION SECTION ========== -->
         <div class="glass card-pad d-none fade-in" id="registration-section">
             <div class="flex-between mb-4">
                 <div>
-                    <h3 style="font-size: 20px;">New Registration</h3>
-                    <p class="text-muted" style="font-size: 13px; margin-top: 4px;">Scan your class card to begin</p>
+                    <h3 style="font-size: 20px;">
+                        New Registration
+                        <span class="si">නව ලියාපදිංචිය</span>
+                    </h3>
+                    <p class="text-muted" style="font-size: 13px; margin-top: 6px;">
+                        Scan your class card to begin
+                        <span class="si">ඔබේ class card scan කර ආරම්භ කරන්න</span>
+                    </p>
                 </div>
                 <div style="background: rgba(16,185,129,0.1); border-radius: 12px; padding: 10px;">
                     <i class='bx bx-id-card' style="font-size: 28px; color: var(--primary-color);"></i>
@@ -215,49 +253,73 @@
 
             <div id="student-reader" style="width: 100%; border-radius: 14px; overflow: hidden; margin-bottom: 16px; border: 2px solid rgba(16,185,129,0.4);"></div>
 
-            <button id="reg-scan-btn" class="btn btn-primary w-100" onclick="startRegScanner()">
-                <i class='bx bx-scan'></i> Scan Class Card Barcode
+            <button id="reg-scan-btn" class="btn btn-primary w-100" onclick="startRegScanner()" style="flex-direction: column; gap: 2px; padding: 14px;">
+                <span><i class='bx bx-scan'></i> Scan Class Card Barcode</span>
+                <span class="si">Class Card බාකෝඩ් scan කරන්න</span>
             </button>
 
             <div class="input-group mt-4">
-                <label>Scanned Class ID</label>
+                <label>
+                    Scanned Class ID
+                    <span class="si">Scan කළ Class ID</span>
+                </label>
                 <input type="text" id="reg-class-id" readonly placeholder="Scan your card to fill this"
                     style="background: rgba(0,0,0,0.2); font-weight: 600; text-align: center; letter-spacing: 1px;">
             </div>
 
             <div id="reg-details" class="d-none">
                 <hr style="border: none; border-top: 1px solid var(--border-color); margin: 8px 0 20px;">
-                <h4 style="margin-bottom: 16px;"><i class='bx bx-user-check'></i> Personal Details</h4>
+                <h4 style="margin-bottom: 16px;">
+                    <i class='bx bx-user-check'></i> Personal Details
+                    <span class="si">පෞද්ගලික තොරතුරු</span>
+                </h4>
 
                 <div class="input-group">
-                    <label>First Name / මුල් නම</label>
+                    <label>
+                        First Name
+                        <span class="si">මුල් නම</span>
+                    </label>
                     <input type="text" id="reg-first-name">
                 </div>
                 <div class="input-group">
-                    <label>Last Name / අග නම</label>
+                    <label>
+                        Last Name
+                        <span class="si">අග නම</span>
+                    </label>
                     <input type="text" id="reg-last-name">
                 </div>
                 <div class="input-group">
-                    <label>NIC Number</label>
+                    <label>
+                        NIC Number
+                        <span class="si">ජාතික හැඳුනුම්පත් අංකය</span>
+                    </label>
                     <input type="text" id="reg-nic" placeholder="e.g. 200123456789">
                 </div>
                 <div class="input-group">
-                    <label>Email Address</label>
+                    <label>
+                        Email Address
+                        <span class="si">විද්‍යුත් තැපැල් ලිපිනය</span>
+                    </label>
                     <input type="email" id="reg-email" placeholder="e.g. student@gmail.com">
                 </div>
 
                 <div class="info-note">
                     <i class='bx bx-info-circle'></i>
-                    <p>NIC and Email can only be entered once and will be locked after saving.</p>
+                    <p>
+                        Name, NIC and Email can only be entered <strong>once</strong> and will be permanently locked after saving.
+                        <span class="si">නම, NIC සහ Email එක් වරක් පමණක් ඇතුළත් කළ හැකි අතර සුරැකීමෙන් පසු ස්ථිරවම lock වේ.</span>
+                    </p>
                 </div>
 
-                <button class="btn btn-primary w-100 mt-4" onclick="registerStudent()">
-                    <i class='bx bx-check-circle'></i> Complete Registration
+                <button class="btn btn-primary w-100 mt-4" onclick="registerStudent()" style="flex-direction: column; gap: 2px; padding: 14px;">
+                    <span><i class='bx bx-check-circle'></i> Complete Registration</span>
+                    <span class="si">ලියාපදිංචිය සම්පූර්ණ කරන්න</span>
                 </button>
             </div>
 
             <button class="btn w-100 mt-4" style="background: transparent;" onclick="location.reload()">
                 <i class='bx bx-arrow-back'></i> Back
+                <span class="si">ආපසු යන්න</span>
             </button>
         </div>
 
@@ -267,7 +329,10 @@
             <!-- Profile Card -->
             <div class="profile-card">
                 <div>
-                    <div class="profile-card-sub">Student Profile</div>
+                    <div class="profile-card-sub">
+                        Student Profile
+                        <span class="si">ශිෂ්‍ය ගිණුම</span>
+                    </div>
                     <div class="profile-card-name" id="display-name">Student Name</div>
                 </div>
                 <div class="profile-card-id" id="display-id">SFT-000</div>
@@ -275,21 +340,40 @@
 
             <!-- Edit Form -->
             <div class="glass card-pad">
-                <h4 style="margin-bottom: 20px;"><i class='bx bx-edit-alt'></i> Edit Personal Information</h4>
+                <h4 style="margin-bottom: 20px;">
+                    <i class='bx bx-edit-alt'></i> Edit Personal Information
+                    <span class="si">පෞද්ගලික තොරතුරු සංස්කරණය කරන්න</span>
+                </h4>
 
                 <div class="input-group">
-                    <label>First Name / මුල් නම</label>
-                    <input type="text" id="first-name">
+                    <label>
+                        First Name
+                        <span class="si">මුල් නම</span>
+                    </label>
+                    <div class="input-lock-wrap">
+                        <input type="text" id="first-name">
+                        <i id="name-lock" class='bx bx-lock-alt lock-icon'></i>
+                    </div>
                 </div>
                 <div class="input-group">
-                    <label>Last Name / අග නම</label>
-                    <input type="text" id="last-name">
+                    <label>
+                        Last Name
+                        <span class="si">අග නම</span>
+                    </label>
+                    <div class="input-lock-wrap">
+                        <input type="text" id="last-name">
+                        <i id="name-lock-2" class='bx bx-lock-alt lock-icon'></i>
+                    </div>
+                    <small id="name-warning" class="text-muted" style="font-size: 12px;"></small>
                 </div>
 
                 <hr style="border: none; border-top: 1px solid var(--border-color); margin: 4px 0 20px;">
 
                 <div class="input-group">
-                    <label>NIC Number</label>
+                    <label>
+                        NIC Number
+                        <span class="si">ජාතික හැඳුනුම්පත් අංකය</span>
+                    </label>
                     <div class="input-lock-wrap">
                         <input type="text" id="nic" placeholder="e.g. 200123456789">
                         <i id="nic-lock" class='bx bx-lock-alt lock-icon'></i>
@@ -298,7 +382,10 @@
                 </div>
 
                 <div class="input-group">
-                    <label>Email Address</label>
+                    <label>
+                        Email Address
+                        <span class="si">විද්‍යුත් තැපැල් ලිපිනය</span>
+                    </label>
                     <div class="input-lock-wrap">
                         <input type="email" id="email" placeholder="e.g. student@gmail.com">
                         <i id="email-lock" class='bx bx-lock-alt lock-icon'></i>
@@ -308,21 +395,84 @@
 
                 <div class="info-note">
                     <i class='bx bx-info-circle'></i>
-                    <p>NIC and Email can only be updated once. After saving, these fields will be locked for security.</p>
+                    <p>
+                        Name, NIC and Email can only be updated <strong>once</strong>. After saving, these fields will be locked permanently for security.
+                        <span class="si">නම, NIC සහ Email <strong>එක් වතාවක් පමණක්</strong> යාවත්කාලීන කළ හැකිය. සුරැකීමෙන් පසු ස්ථිරවම lock වේ.</span>
+                    </p>
                 </div>
 
-                <button class="btn btn-primary w-100 mt-4" onclick="updateStudent()">
-                    <i class='bx bx-save'></i> Save Profile Updates
+                <button class="btn btn-primary w-100 mt-4" onclick="updateStudent()" style="flex-direction: column; gap: 2px; padding: 14px;">
+                    <span><i class='bx bx-save'></i> Save Profile Updates</span>
+                    <span class="si">Profile යාවත්කාලීන කිරීම් සුරකින්න</span>
                 </button>
 
                 <button class="btn w-100 mt-4" style="background: transparent;" onclick="location.reload()">
                     <i class='bx bx-chevron-left'></i> Cancel &amp; Exit
+                    <span class="si">අවලංගු කර ඉවත් වන්න</span>
                 </button>
             </div>
+
+            <!-- ========== PAPER HISTORY SECTION ========== -->
+            <div class="glass card-pad mt-4" id="paper-history-section">
+                <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:16px;">
+                    <h4 style="display:flex; flex-direction:column; gap:2px;">
+                        <span style="display:flex; align-items:center; gap:8px;">
+                            <i class='bx bx-book-open' style="color:var(--primary-color);"></i>
+                            My Written Papers
+                        </span>
+                        <span class="si" style="margin-left: 28px;">මා ලියූ පත්‍රිකා</span>
+                    </h4>
+                    <span id="paper-count-badge" style="background:rgba(16,185,129,0.12); color:var(--primary-color); font-size:11px; font-weight:700; padding:4px 10px; border-radius:20px; white-space:nowrap; align-self:flex-start;">0 Papers</span>
+                </div>
+
+                <div id="paper-history-list">
+                    <div style="text-align:center; padding:20px 0;">
+                        <i class='bx bx-loader-alt bx-spin' style="font-size:24px; color:var(--text-muted);"></i>
+                    </div>
+                </div>
+            </div>
+
         </div>
 
     </div><!-- end student-card-wrap -->
 </div><!-- end student-page -->
+
+<!-- Custom Confirm Modal -->
+<div id="confirm-modal" style="
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.75);
+    backdrop-filter: blur(6px);
+    display: flex; align-items: center; justify-content: center;
+    z-index: 2000;
+    opacity: 0; pointer-events: none;
+    transition: opacity 0.25s ease;
+">
+    <div class="glass" style="
+        width: 90%; max-width: 400px;
+        padding: 28px 24px;
+        border-radius: 20px;
+        border-color: rgba(16,185,129,0.25);
+        transform: scale(0.92);
+        transition: transform 0.25s ease;
+        text-align: center;
+    " id="confirm-modal-box">
+        <div style="width:56px; height:56px; border-radius:50%; background:rgba(16,185,129,0.1); border:1px solid rgba(16,185,129,0.3); display:flex; align-items:center; justify-content:center; margin:0 auto 18px;">
+            <i class='bx bx-user-x' style="font-size:28px; color:var(--primary-color);"></i>
+        </div>
+        <p style="font-size:15px; font-weight:600; line-height:1.6; margin-bottom:6px;" id="confirm-modal-msg">Account not found. Would you like to create a new account for this Class ID?</p>
+        <p style="font-size:11px; color:var(--text-muted); font-family:Arial,sans-serif; line-height:1.6; margin-bottom:24px;">ගිණුමක් හමු නොවීය. මෙම Class ID සඳහා නව ගිණුමක් සාදන්නද?</p>
+        <div style="display:flex; gap:10px;">
+            <button id="confirm-modal-cancel" class="btn w-100" style="background:transparent;" onclick="_confirmResolve(false)">
+                Cancel
+                <span class="si">අවලංගු කරන්න</span>
+            </button>
+            <button id="confirm-modal-ok" class="btn btn-primary w-100" onclick="_confirmResolve(true)">
+                Create Account
+                <span class="si">ගිණුම සාදන්න</span>
+            </button>
+        </div>
+    </div>
+</div>
 
 <!-- Toast -->
 <div id="toast" class="toast">

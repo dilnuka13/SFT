@@ -27,6 +27,9 @@ async function adminLogout() {
 }
 
 function showTab(tab) {
+    // Update URL hash
+    history.replaceState(null, '', '#' + tab);
+
     // Hide all tab content
     document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
     document.getElementById(`tab-${tab}`).classList.add('active');
@@ -52,8 +55,10 @@ async function initDashboard() {
     loadRecentScans();
     loadResetRequests();
     populateExportPapers();
-    // Default Tab
-    showTab('dashboard');
+    // Restore tab from URL hash
+    const validTabs = ['dashboard', 'instructors', 'students', 'export', 'requests'];
+    const hash = window.location.hash.replace('#', '');
+    showTab(validTabs.includes(hash) ? hash : 'dashboard');
 }
 
 async function loadStats() {
@@ -346,22 +351,30 @@ async function loadResetRequests() {
     `).join('');
 }
 
-function populateExportPapers() {
+async function populateExportPapers() {
     const grid = document.getElementById('export-paper-grid');
-    let html = '';
-    
-    const paperTypes = [];
-    for (let i = 30; i <= 60; i++) paperTypes.push(`Black Paper ${i}`);
-    paperTypes.push('Special Paper', 'Rank Paper', 'Other');
+    if (!grid) return;
 
-    html = paperTypes.map(paper => `
+    grid.innerHTML = '<div style="padding:12px; color:var(--text-muted); font-size:13px;"><i class="bx bx-loader-alt bx-spin"></i> Loading papers...</div>';
+
+    const { data, error } = await supabaseClient
+        .from('papers')
+        .select('paper_number, category')
+        .eq('is_active', true)
+        .order('sort_order', { ascending: true });
+
+    if (error || !data) {
+        grid.innerHTML = '<p style="padding:12px; color:var(--danger-color); font-size:13px;">Failed to load papers.</p>';
+        return;
+    }
+
+    grid.innerHTML = data.map(p => `
         <label class="glass" style="display: flex; align-items: center; gap: 10px; padding: 10px; cursor: pointer;">
-            <input type="checkbox" class="paper-checkbox" value="${paper}" style="width: 20px; height: 20px; accent-color: var(--primary-color);">
-            <span style="font-size: 13px;">${paper}</span>
+            <input type="checkbox" class="paper-checkbox" value="${p.paper_number}"
+                style="width: 20px; height: 20px; accent-color: var(--primary-color);">
+            <span style="font-size: 13px;">${p.paper_number}</span>
         </label>
     `).join('');
-    
-    grid.innerHTML = html;
 }
 
 function selectAllPapers(checked) {
@@ -446,10 +459,10 @@ async function generatePDF() {
     const doc = new jsPDF('l', 'mm', 'a4'); // Landscape orientation
     
     try {
-        const logoBase64 = await getImageBase64('logo.png');
-        doc.addImage(logoBase64, 'PNG', 14, 5, 30, 15);
+        const logoBase64 = await getImageBase64('MiniLogo.png');
+        doc.addImage(logoBase64, 'PNG', 14, 4, 16, 16);
     } catch (e) {
-        console.error("Logo failed to load", e);
+        console.error('Logo failed to load', e);
     }
 
     doc.setFontSize(18);
@@ -457,13 +470,11 @@ async function generatePDF() {
     doc.setFontSize(10);
     doc.text(`Generated on: ${new Date().toLocaleString()} ${month ? `| Month: ${month}` : ''}`, 50, 22);
 
-    // Columns: ID, Name, Email, ...Papers
     const head = [['ID', 'Name', 'Email', ...selectedPapers]];
     const body = studentList.map(s => {
         const row = [s.id, s.name, s.email];
         selectedPapers.forEach(paper => {
-            // Using a more prominent checkmark or styling
-            row.push(s.papers[paper] ? '✔' : '');
+            row.push(s.papers[paper] ? 1 : '');
         });
         return row;
     });
@@ -486,12 +497,22 @@ async function generatePDF() {
         },
         headStyles: { fillColor: [16, 185, 129], textColor: 255 },
         didParseCell: function(data) {
-            if (data.section === 'body' && data.column.index >= 3) {
-                if (data.cell.text[0] === '✔') {
-                    data.cell.styles.textColor = [16, 185, 129];
-                    data.cell.styles.fontStyle = 'bold';
-                    data.cell.styles.fontSize = 12;
-                }
+            if (data.section === 'body' && data.column.index >= 3 && data.cell.raw === 1) {
+                data.cell.text = [''];
+            }
+        },
+        didDrawCell: function(data) {
+            if (data.section === 'body' && data.column.index >= 3 && data.row.raw[data.column.index] === 1) {
+                const doc = data.doc;
+                const cx  = data.cell.x + data.cell.width  / 2;
+                const cy  = data.cell.y + data.cell.height / 2;
+                const r   = 3.2;
+                doc.setFillColor(16, 185, 129);
+                doc.circle(cx, cy, r, 'F');
+                doc.setDrawColor(255, 255, 255);
+                doc.setLineWidth(0.7);
+                doc.line(cx - 1.6, cy,       cx - 0.4, cy + 1.4);
+                doc.line(cx - 0.4, cy + 1.4, cx + 2.0, cy - 1.2);
             }
         }
     });

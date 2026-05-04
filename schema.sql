@@ -20,6 +20,7 @@ create table students (
     last_name text,
     nic text,
     email text,
+    name_edited boolean default false,
     nic_edited boolean default false,
     email_edited boolean default false,
     created_at timestamp with time zone default timezone('utc'::text, now()) not null

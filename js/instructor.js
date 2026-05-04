@@ -74,6 +74,63 @@ async function loginWithPassword() {
     }
 }
 
+async function loginWithBiometrics() {
+    if (!selectedInstructorId) {
+        showToast('Please select your account first.', 'error');
+        return;
+    }
+
+    if (!window.PublicKeyCredential) {
+        showToast('Biometric login is not supported on this device.', 'error');
+        return;
+    }
+
+    const { data, error } = await supabaseClient
+        .from('instructors').select('*').eq('id', selectedInstructorId).single();
+
+    if (error || !data) {
+        showToast('Account not found.', 'error');
+        return;
+    }
+
+    if (!data.webauthn_credential) {
+        showToast('No biometric set up for this account. Use password login.', 'error');
+        return;
+    }
+
+    try {
+        const challenge = new Uint8Array(32);
+        crypto.getRandomValues(challenge);
+
+        const rawIdBuffer = base64ToArrayBuffer(data.webauthn_credential.rawId);
+
+        const assertion = await navigator.credentials.get({
+            publicKey: {
+                challenge,
+                allowCredentials: [{ id: rawIdBuffer, type: 'public-key', transports: ['internal'] }],
+                userVerification: 'required',
+                timeout: 60000
+            }
+        });
+
+        if (assertion) {
+            currentInstructor = data;
+            localStorage.setItem('sft_instructor', JSON.stringify(data));
+            if (data.temp_password) {
+                document.getElementById('force-pass-modal').classList.add('active');
+            } else {
+                enterDashboard();
+            }
+        }
+    } catch (err) {
+        if (err.name === 'NotAllowedError') {
+            showToast('Biometric login cancelled or timed out.', 'error');
+        } else {
+            showToast('Biometric error: ' + err.message, 'error');
+        }
+    }
+}
+
 async function saveNewPassword() {
     const newPass = document.getElementById('force-new-pass').value;
     if (!newPass) return;
@@ -108,7 +165,7 @@ function enterDashboard() {
     const studentUrl = `${baseUrl}student.html`;
     document.getElementById('share-link').value = studentUrl;
     generateStudentQR(studentUrl);
-    populateExportPapers();
+    loadPapers(); // loads papers from DB, then populates scanner + export
 
     // Sync avatar to both PC and mobile headers
     if (currentInstructor.avatar_url) {
@@ -135,16 +192,192 @@ function generateStudentQR(url) {
     });
 }
 
-function downloadQR() {
+// ── QR Card helpers ───────────────────────────────────────
+function _loadImg(src) {
+    return new Promise((resolve, reject) => {
+        const img = new Image();
+        img.crossOrigin = 'Anonymous';
+        img.onload  = () => resolve(img);
+        img.onerror = reject;
+        img.src = src;
+    });
+}
+function _rr(ctx, x, y, w, h, r) {
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.lineTo(x + w - r, y);  ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+    ctx.lineTo(x + w, y + h - r); ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+    ctx.lineTo(x + r, y + h);  ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+    ctx.lineTo(x, y + r);      ctx.quadraticCurveTo(x, y, x + r, y);
+    ctx.closePath();
+}
+
+async function downloadQR() {
     const qrImg = document.querySelector('#student-qr-display img');
-    if (!qrImg) return;
+    if (!qrImg) { showToast('QR not ready', 'error'); return; }
+
+    const studentUrl = document.getElementById('share-link').value;
+    const W = 800, H = 1040;
+    const canvas = document.createElement('canvas');
+    canvas.width = W; canvas.height = H;
+    const ctx = canvas.getContext('2d');
+
+    // ── Background ────────────────────────────────────────
+    const bg = ctx.createLinearGradient(0, 0, W, H);
+    bg.addColorStop(0, '#020617');
+    bg.addColorStop(1, '#0a1929');
+    _rr(ctx, 0, 0, W, H, 0); ctx.fillStyle = bg; ctx.fill();
+
+    // Green top stripe
+    const stripe = ctx.createLinearGradient(0, 0, W, 0);
+    stripe.addColorStop(0, '#10b981'); stripe.addColorStop(1, '#059669');
+    ctx.fillStyle = stripe; ctx.fillRect(0, 0, W, 7);
+
+    // Subtle top-right glow
+    const glow = ctx.createRadialGradient(W, 0, 0, W, 0, 380);
+    glow.addColorStop(0, 'rgba(16,185,129,0.12)');
+    glow.addColorStop(1, 'transparent');
+    ctx.fillStyle = glow; ctx.fillRect(0, 0, W, H);
+
+    // ── Logo ──────────────────────────────────────────────
+    try {
+        const logo = await _loadImg('logo.png');
+        const ls = 72;
+        // Soft circle behind logo
+        ctx.save();
+        ctx.shadowColor = 'rgba(16,185,129,0.35)';
+        ctx.shadowBlur  = 24;
+        ctx.drawImage(logo, W / 2 - ls / 2, 28, ls, ls);
+        ctx.restore();
+    } catch(e) { /* skip */ }
+
+    // ── Brand title ───────────────────────────────────────
+    ctx.textAlign = 'center';
+    ctx.fillStyle = '#10b981';
+    ctx.font = 'bold 30px Outfit, Arial, sans-serif';
+    ctx.fillText('Zeon Opera — Horana', W / 2, 126);
+
+    ctx.fillStyle = '#94a3b8';
+    ctx.font = '16px Outfit, Arial, sans-serif';
+    ctx.fillText('SFT Paper Management System', W / 2, 152);
+
+    // Divider
+    ctx.strokeStyle = 'rgba(255,255,255,0.07)';
+    ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(60, 170); ctx.lineTo(W - 60, 170); ctx.stroke();
+
+    // ── QR card ───────────────────────────────────────────
+    const qrBg = ctx.createLinearGradient(160, 185, 640, 650);
+    qrBg.addColorStop(0, 'rgba(16,185,129,0.09)');
+    qrBg.addColorStop(1, 'rgba(15,23,42,0.55)');
+    ctx.fillStyle = qrBg;
+    ctx.strokeStyle = 'rgba(16,185,129,0.28)';
+    ctx.lineWidth = 1.5;
+    _rr(ctx, 145, 182, 510, 510, 22); ctx.fill(); ctx.stroke();
+
+    // Corner accents (QR card corners)
+    const acColor = '#10b981', acLen = 28, acW = 3;
+    [[145,182],[655,182],[145,692],[655,692]].forEach(([cx,cy], i) => {
+        ctx.strokeStyle = acColor; ctx.lineWidth = acW; ctx.beginPath();
+        const sx = i % 2 === 0 ? 1 : -1, sy = i < 2 ? 1 : -1;
+        const r = 22;
+        if (sx === 1 && sy === 1) {
+            ctx.moveTo(cx + r, cy); ctx.lineTo(cx + r + acLen, cy);
+            ctx.moveTo(cx, cy + r); ctx.lineTo(cx, cy + r + acLen);
+        } else if (sx === -1 && sy === 1) {
+            ctx.moveTo(cx - r, cy); ctx.lineTo(cx - r - acLen, cy);
+            ctx.moveTo(cx, cy + r); ctx.lineTo(cx, cy + r + acLen);
+        } else if (sx === 1 && sy === -1) {
+            ctx.moveTo(cx + r, cy); ctx.lineTo(cx + r + acLen, cy);
+            ctx.moveTo(cx, cy - r); ctx.lineTo(cx, cy - r - acLen);
+        } else {
+            ctx.moveTo(cx - r, cy); ctx.lineTo(cx - r - acLen, cy);
+            ctx.moveTo(cx, cy - r); ctx.lineTo(cx, cy - r - acLen);
+        }
+        ctx.stroke();
+    });
+
+    // QR image (white background)
+    ctx.fillStyle = '#ffffff';
+    _rr(ctx, 198, 208, 404, 404, 12); ctx.fill();
+    const qr = await _loadImg(qrImg.src);
+    ctx.drawImage(qr, 208, 218, 384, 384);
+
+    // ── "SCAN ME" label ───────────────────────────────────
+    ctx.fillStyle = '#10b981';
+    ctx.font = 'bold 17px Outfit, Arial, sans-serif';
+    ctx.letterSpacing = '4px';
+    ctx.fillText('▲  SCAN ME  ▲', W / 2, 724);
+    ctx.letterSpacing = '0px';
+
+    // ── URL pill ──────────────────────────────────────────
+    ctx.fillStyle = 'rgba(16,185,129,0.08)';
+    ctx.strokeStyle = 'rgba(16,185,129,0.28)'; ctx.lineWidth = 1;
+    _rr(ctx, 55, 738, W - 110, 46, 23); ctx.fill(); ctx.stroke();
+
+    ctx.fillStyle = '#10b981';
+    ctx.font = '500 14px Outfit, "Courier New", monospace';
+    const shortUrl = studentUrl.length > 72 ? studentUrl.slice(0, 72) + '…' : studentUrl;
+    ctx.fillText('🔗  ' + shortUrl, W / 2, 767);
+
+    // ── Instructions block ────────────────────────────────
+    // English main heading
+    ctx.fillStyle = '#f8fafc';
+    ctx.font = 'bold 19px Outfit, Arial, sans-serif';
+    ctx.fillText('How to Register / Update Your Profile', W / 2, 820);
+
+    // Sinhala heading sub
+    ctx.fillStyle = 'rgba(148,163,184,0.75)';
+    ctx.font = '13px Arial, sans-serif';
+    ctx.fillText('ඔබේ SFT ශිෂ්‍ය ගිණුම ලියාපදිංචි / යාවත්කාලීන කරන ආකාරය', W / 2, 842);
+
+    // Step rows
+    const steps = [
+        { en: '1.  Open your Camera and point at the QR code',   si: 'කැමරාව හරවා QR කේතය frame කරන්න' },
+        { en: '2.  Tap the link that appears on your screen',     si: 'තිරයේ ලැබෙන link එකට tap කරන්න' },
+        { en: '3.  Enter your Class ID to access your profile',   si: 'Class ID ඇතුළත් කර Profile ලබා ගන්න' },
+        { en: '4.  Fill in your details and tap Save',            si: 'තොරතුරු පුරවා Save කරන්න' },
+    ];
+
+    let rowY = 873;
+    steps.forEach(step => {
+        // Row pill
+        ctx.fillStyle = 'rgba(255,255,255,0.03)';
+        _rr(ctx, 55, rowY - 16, W - 110, 38, 10); ctx.fill();
+
+        ctx.fillStyle = '#e2e8f0';
+        ctx.font = '500 14px Outfit, Arial, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText(step.en, W / 2, rowY + 4);
+
+        ctx.fillStyle = 'rgba(148,163,184,0.65)';
+        ctx.font = '11px Arial, sans-serif';
+        ctx.fillText(step.si, W / 2, rowY + 18);
+
+        rowY += 52;
+    });
+
+    // ── Footer ────────────────────────────────────────────
+    ctx.strokeStyle = 'rgba(255,255,255,0.06)';
+    ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(60, H - 46); ctx.lineTo(W - 60, H - 46); ctx.stroke();
+
+    ctx.fillStyle = 'rgba(148,163,184,0.35)';
+    ctx.font = '12px Outfit, Arial, sans-serif';
+    ctx.fillText('malakapriyadarshana.lk  •  Zeon Opera SFT Classes — Horana', W / 2, H - 22);
+
+    // ── Download ──────────────────────────────────────────
     const link = document.createElement('a');
-    link.download = 'student-registration-qr.png';
-    link.href = qrImg.src;
+    link.download = 'SFT_Student_Registration_QR.png';
+    link.href = canvas.toDataURL('image/png');
     link.click();
+    showToast('QR Card downloaded!');
 }
 
 function switchTab(tab) {
+    // Update URL hash
+    history.replaceState(null, '', '#' + tab);
+
     // Update PC sidebar links
     document.querySelectorAll('.sidebar-link').forEach(el => el.classList.remove('active'));
     const pcLink = document.getElementById(`pc-link-${tab}`);
@@ -171,6 +404,7 @@ function switchTab(tab) {
         document.getElementById('reports-section').classList.add('d-none');
         document.getElementById('profile-section').classList.remove('d-none');
         stopScanner();
+        loadPapers();
     }
 }
 
@@ -231,7 +465,24 @@ async function markAttendance(classId) {
         }
     }
 
-    // 2. Add attendance
+    // 2. Duplicate check — Prevent any student from marking the same paper twice
+    const { data: existing } = await supabaseClient
+        .from('attendance')
+        .select('id')
+        .eq('class_id', classId)
+        .eq('paper_number', paper)
+        .limit(1);
+    
+    if (existing && existing.length > 0) {
+        // Show Warning Modal
+        document.getElementById('warning-msg').innerText = `ID: ${classId}\n${paper}`;
+        document.getElementById('warning-modal').classList.add('active');
+        
+        if (navigator.vibrate) navigator.vibrate([100, 50, 100]);
+        return;
+    }
+
+    // 3. Add attendance
     const { error: aError } = await supabaseClient.from('attendance').insert([{
         class_id: classId,
         paper_number: paper,
@@ -261,6 +512,10 @@ async function markAttendance(classId) {
 
 function closeSuccessModal() {
     document.getElementById('success-modal').classList.remove('active');
+}
+
+function closeWarningModal() {
+    document.getElementById('warning-modal').classList.remove('active');
 }
 
 async function requestPasswordReset() {
@@ -300,12 +555,92 @@ async function changePassword() {
     }
 }
 
-function setupBiometrics() {
-    showToast('Biometrics setup coming soon! This requires a secure context (HTTPS) and WebAuthn implementation.', 'info');
+// ── WebAuthn helpers ──────────────────────────────────────
+function arrayBufferToBase64(buffer) {
+    return btoa(String.fromCharCode(...new Uint8Array(buffer)));
+}
+function base64ToArrayBuffer(base64) {
+    const binary = atob(base64);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+    return bytes.buffer;
 }
 
-function removeBiometrics() {
-    showToast('Biometrics removed');
+async function setupBiometrics() {
+    if (!window.PublicKeyCredential) {
+        showToast('Biometric login is not supported on this device.', 'error');
+        return;
+    }
+    if (!window.isSecureContext) {
+        showToast('HTTPS is required to use biometric login.', 'error');
+        return;
+    }
+
+    try {
+        const challenge = new Uint8Array(32);
+        crypto.getRandomValues(challenge);
+
+        const credential = await navigator.credentials.create({
+            publicKey: {
+                challenge,
+                rp: { name: 'Zeon Opera SFT', id: location.hostname },
+                user: {
+                    id: new TextEncoder().encode(currentInstructor.id),
+                    name: currentInstructor.name,
+                    displayName: currentInstructor.name
+                },
+                pubKeyCredParams: [
+                    { type: 'public-key', alg: -7 },
+                    { type: 'public-key', alg: -257 }
+                ],
+                authenticatorSelection: {
+                    authenticatorAttachment: 'platform',
+                    userVerification: 'required'
+                },
+                timeout: 60000
+            }
+        });
+
+        const credData = {
+            id:    credential.id,
+            rawId: arrayBufferToBase64(credential.rawId),
+            type:  credential.type
+        };
+
+        const { error } = await supabaseClient
+            .from('instructors')
+            .update({ webauthn_credential: credData })
+            .eq('id', currentInstructor.id);
+
+        if (error) {
+            showToast('Failed to save biometric: ' + error.message, 'error');
+        } else {
+            currentInstructor.webauthn_credential = credData;
+            localStorage.setItem('sft_instructor', JSON.stringify(currentInstructor));
+            showToast('Biometric login set up successfully! ✓');
+        }
+    } catch (err) {
+        if (err.name === 'NotAllowedError') {
+            showToast('Biometric setup cancelled.', 'error');
+        } else {
+            showToast('Setup error: ' + err.message, 'error');
+        }
+    }
+}
+
+async function removeBiometrics() {
+    const { error } = await supabaseClient
+        .from('instructors')
+        .update({ webauthn_credential: null })
+        .eq('id', currentInstructor.id);
+
+    if (error) {
+        showToast(error.message, 'error');
+    } else {
+        currentInstructor.webauthn_credential = null;
+        localStorage.setItem('sft_instructor', JSON.stringify(currentInstructor));
+        showToast('Biometric login removed.');
+    }
 }
 
 async function uploadAvatar(input) {
@@ -364,7 +699,7 @@ async function loadReports() {
     const tbody = document.getElementById('detailed-attendance-table');
     if (!tbody) return;
 
-    tbody.innerHTML = '<tr><td colspan="4" class="text-center"><i class="bx bx-loader-alt bx-spin"></i> Loading...</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="5" class="text-center"><i class="bx bx-loader-alt bx-spin"></i> Loading...</td></tr>';
 
     const { data, error } = await supabaseClient
         .from('attendance')
@@ -372,9 +707,13 @@ async function loadReports() {
             class_id,
             paper_number,
             scanned_at,
+            scanned_by,
             students (
                 first_name,
                 last_name
+            ),
+            instructors (
+                name
             )
         `)
         .order('scanned_at', { ascending: false })
@@ -385,33 +724,64 @@ async function loadReports() {
         return;
     }
 
-    tbody.innerHTML = data.map(row => `
+    tbody.innerHTML = data.map(row => {
+        const dt = new Date(row.scanned_at);
+        const dateStr = dt.toLocaleDateString('si-LK', { year: 'numeric', month: '2-digit', day: '2-digit' });
+        const timeStr = dt.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
+        const instructorName = row.instructors?.name || '—';
+        return `
         <tr>
             <td style="font-weight: 600; color: var(--primary-color);">${row.class_id}</td>
-            <td>${row.students ? `${row.students.first_name || ''} ${row.students.last_name || ''}` : '<span class="text-muted">Not Registered</span>'}</td>
+            <td>${row.students ? `${row.students.first_name || ''} ${row.students.last_name || ''}`.trim() || '<span class="text-muted">—</span>' : '<span class="text-muted">Not Registered</span>'}</td>
             <td><span class="badge badge-success" style="font-size: 10px;">${row.paper_number}</span></td>
-            <td style="font-size: 11px; color: var(--text-muted);">${new Date(row.scanned_at).toLocaleString()}</td>
-        </tr>
-    `).join('');
+            <td style="font-size: 11px;">
+                <div style="color: var(--text-color); font-weight: 500;">${dateStr}</div>
+                <div style="color: var(--text-muted); font-size: 10px;">${timeStr}</div>
+            </td>
+            <td style="font-size: 11px;">
+                <div style="display:flex; align-items:center; gap:5px;">
+                    <i class='bx bx-user-voice' style="color:var(--primary-color); font-size:13px;"></i>
+                    <span>${instructorName}</span>
+                </div>
+            </td>
+        </tr>`;
+    }).join('');
 }
 
-function populateExportPapers() {
+async function populatePaperSelect() {
+    const sel = document.getElementById('paper-select');
+    if (!sel) return;
+
+    let papers = _allPapers.filter(p => p.is_active);
+    if (papers.length === 0) {
+        // Fallback: load from DB if not yet loaded
+        const { data } = await supabaseClient.from('papers').select('*').eq('is_active', true).order('sort_order');
+        papers = data || [];
+    }
+
+    sel.innerHTML = papers.map(p =>
+        `<option value="${p.paper_number}">${p.paper_number}${p.unique_code ? ' (' + p.unique_code + ')' : ''}</option>`
+    ).join('');
+    toggleNoteField();
+}
+
+async function populateExportPapers() {
     const grid = document.getElementById('export-paper-grid');
     if (!grid) return;
 
-    let html = '';
-    const paperTypes = [];
-    for (let i = 30; i <= 60; i++) paperTypes.push(`Black Paper ${i}`);
-    paperTypes.push('Special Paper', 'Rank Paper', 'Other');
+    let papers = _allPapers.filter(p => p.is_active);
+    if (papers.length === 0) {
+        const { data } = await supabaseClient.from('papers').select('*').eq('is_active', true).order('sort_order');
+        papers = data || [];
+    }
 
-    html = paperTypes.map(paper => `
+    grid.innerHTML = papers.map(p => `
         <label class="glass" style="display: flex; align-items: center; gap: 8px; padding: 8px; cursor: pointer;">
-            <input type="checkbox" class="paper-checkbox" value="${paper}" style="width: 16px; height: 16px; accent-color: var(--primary-color);">
-            <span style="font-size: 11px;">${paper}</span>
+            <input type="checkbox" class="paper-checkbox" value="${p.paper_number}"
+                style="width: 16px; height: 16px; accent-color: var(--primary-color);">
+            <span style="font-size: 11px;">${p.paper_number}</span>
         </label>
     `).join('');
-    
-    grid.innerHTML = html;
 }
 
 function selectAllPapers(checked) {
@@ -498,10 +868,10 @@ async function generatePDF() {
     const doc = new jsPDF('l', 'mm', 'a4'); 
     
     try {
-        const logoBase64 = await getImageBase64('logo.png');
-        doc.addImage(logoBase64, 'PNG', 14, 5, 30, 15);
+        const logoBase64 = await getImageBase64('MiniLogo.png');
+        doc.addImage(logoBase64, 'PNG', 14, 4, 16, 16);
     } catch (e) {
-        console.error("Logo failed to load", e);
+        console.error('Logo failed to load', e);
     }
 
     doc.setFontSize(18);
@@ -513,7 +883,8 @@ async function generatePDF() {
     const body = studentList.map(s => {
         const row = [s.id, s.name, s.email];
         selectedPapers.forEach(paper => {
-            row.push(s.papers[paper] ? '✔' : '');
+            // Use 1 as a marker (text hidden; drawn via didDrawCell)
+            row.push(s.papers[paper] ? 1 : '');
         });
         return row;
     });
@@ -536,18 +907,138 @@ async function generatePDF() {
         },
         headStyles: { fillColor: [16, 185, 129], textColor: 255 },
         didParseCell: function(data) {
-            if (data.section === 'body' && data.column.index >= 3) {
-                if (data.cell.text[0] === '✔') {
-                    data.cell.styles.textColor = [16, 185, 129];
-                    data.cell.styles.fontStyle = 'bold';
-                    data.cell.styles.fontSize = 12;
-                }
+            // Hide the numeric marker — graphic drawn in didDrawCell
+            if (data.section === 'body' && data.column.index >= 3 && data.cell.raw === 1) {
+                data.cell.text = [''];
+            }
+        },
+        didDrawCell: function(data) {
+            if (data.section === 'body' && data.column.index >= 3 && data.row.raw[data.column.index] === 1) {
+                const doc  = data.doc;
+                const cx   = data.cell.x + data.cell.width  / 2;
+                const cy   = data.cell.y + data.cell.height / 2;
+                const r    = 3.2;
+
+                // Green filled circle
+                doc.setFillColor(16, 185, 129);
+                doc.circle(cx, cy, r, 'F');
+
+                // White checkmark lines
+                doc.setDrawColor(255, 255, 255);
+                doc.setLineWidth(0.7);
+                // Short left stroke of tick
+                doc.line(cx - 1.6, cy,       cx - 0.4, cy + 1.4);
+                // Long right stroke of tick
+                doc.line(cx - 0.4, cy + 1.4, cx + 2.0, cy - 1.2);
             }
         }
     });
 
     doc.save(`Marking_Checklist_${Date.now()}.pdf`);
     showToast('Attendance checklist exported!');
+}
+
+// ── Paper Management ──────────────────────────────────────
+let _allPapers = [];
+
+async function loadPapers() {
+    const loadingEl  = document.getElementById('papers-loading');
+    const wrapEl     = document.getElementById('papers-table-wrap');
+    if (loadingEl) loadingEl.style.display = 'block';
+    if (wrapEl)    wrapEl.style.display = 'none';
+
+    const { data, error } = await supabaseClient
+        .from('papers')
+        .select('*')
+        .order('sort_order', { ascending: true });
+
+    if (error) { showToast(error.message, 'error'); return; }
+    _allPapers = data;
+
+    if (loadingEl) loadingEl.style.display = 'none';
+    if (wrapEl)    wrapEl.style.display = 'block';
+
+    const tbody = document.getElementById('papers-list');
+    if (tbody) {
+        tbody.innerHTML = data.map((p, i) => `
+            <tr style="opacity: ${p.is_active ? 1 : 0.45};">
+                <td style="color:var(--text-muted);">${i + 1}</td>
+                <td style="font-weight:600;">${p.paper_number}</td>
+                <td><span class="badge" style="background:rgba(16,185,129,0.1); color:var(--primary-color); font-size:10px;">${p.category}</span></td>
+                <td style="color:var(--text-muted); font-size:11px;">${p.unique_code || '—'}</td>
+                <td>
+                    <label style="cursor:pointer; display:flex; align-items:center; gap:6px; font-size:11px;">
+                        <input type="checkbox" ${p.is_active ? 'checked' : ''}
+                            onchange="togglePaperStatus('${p.id}', this.checked)"
+                            style="accent-color:var(--primary-color); width:14px; height:14px;">
+                        ${p.is_active ? 'Active' : 'Inactive'}
+                    </label>
+                </td>
+                <td>
+                    <button class="btn btn-danger" style="padding:4px 8px; font-size:11px;"
+                        onclick="deletePaper('${p.id}', \`${p.paper_number.replace(/`/g, '\\`')}\`)">
+                        <i class='bx bx-trash'></i>
+                    </button>
+                </td>
+            </tr>
+        `).join('');
+    }
+
+    // Refresh scanner dropdown and export grid
+    populatePaperSelect();
+    populateExportPapers();
+}
+
+async function addPaper() {
+    const category = document.getElementById('new-paper-category').value.trim();
+    const number   = document.getElementById('new-paper-number').value.trim();
+    const code     = document.getElementById('new-paper-code').value.trim();
+    const sort     = parseInt(document.getElementById('new-paper-sort').value) || 100;
+
+    if (!category || !number) {
+        showToast('Category and Paper Name are required.', 'error');
+        return;
+    }
+
+    const { error } = await supabaseClient.from('papers').insert([{
+        category,
+        paper_number: number,
+        unique_code:  code || null,
+        sort_order:   sort,
+        is_active:    true
+    }]);
+
+    if (error) {
+        showToast(error.message, 'error');
+    } else {
+        showToast('Paper added successfully!');
+        closeAddPaperModal();
+        loadPapers();
+    }
+}
+
+async function deletePaper(id, name) {
+    if (!confirm(`Delete "${name}"?\n(Existing attendance records are not affected.)`)) return;
+    const { error } = await supabaseClient.from('papers').delete().eq('id', id);
+    if (error) showToast(error.message, 'error');
+    else { showToast('Paper removed.'); loadPapers(); }
+}
+
+async function togglePaperStatus(id, isActive) {
+    const { error } = await supabaseClient.from('papers').update({ is_active: isActive }).eq('id', id);
+    if (error) showToast(error.message, 'error');
+    else loadPapers();
+}
+
+function openAddPaperModal() {
+    document.getElementById('new-paper-category').value = '';
+    document.getElementById('new-paper-number').value   = '';
+    document.getElementById('new-paper-code').value     = '';
+    document.getElementById('new-paper-sort').value     = '100';
+    document.getElementById('add-paper-modal').classList.add('active');
+}
+function closeAddPaperModal() {
+    document.getElementById('add-paper-modal').classList.remove('active');
 }
 
 // Auto-login Check
@@ -557,5 +1048,9 @@ window.addEventListener('load', () => {
     if (saved) {
         currentInstructor = JSON.parse(saved);
         enterDashboard();
+        // Restore tab from URL hash
+        const validTabs = ['scanner', 'reports', 'profile'];
+        const hash = window.location.hash.replace('#', '');
+        if (validTabs.includes(hash)) switchTab(hash);
     }
 });

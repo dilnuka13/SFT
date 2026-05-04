@@ -118,9 +118,6 @@
                     <i class='bx bx-log-out'></i>
                     <span>Logout</span>
                 </button>
-                <a href="https://malakapriyadarshana.lk" target="_blank" class="sidebar-website-link">
-                    <i class='bx bx-globe'></i> malakapriyadarshana.lk
-                </a>
             </div>
         </aside>
 
@@ -236,7 +233,38 @@
                             <i class='bx bx-download'></i> Download QR Code
                         </button>
                     </div>
-                </div>
+
+                    <!-- Paper Management -->
+                    <div class="glass section-card mt-4">
+                        <div class="flex-between mb-4">
+                            <h3><i class='bx bx-book-content'></i> Paper Management</h3>
+                            <button class="btn btn-primary" style="padding:6px 14px; font-size:13px;" onclick="openAddPaperModal()">
+                                <i class='bx bx-plus'></i> Add Paper
+                            </button>
+                        </div>
+
+                        <div id="papers-loading" class="text-center" style="padding:20px 0; color:var(--text-muted); font-size:13px;">
+                            <i class='bx bx-loader-alt bx-spin'></i> Loading papers...
+                        </div>
+
+                        <div id="papers-table-wrap" style="display:none; overflow-x:auto;">
+                            <table style="font-size:12px;">
+                                <thead>
+                                    <tr>
+                                        <th style="width:32px;">#</th>
+                                        <th>Paper Name</th>
+                                        <th>Category</th>
+                                        <th>Code</th>
+                                        <th>Status</th>
+                                        <th style="width:40px;"></th>
+                                    </tr>
+                                </thead>
+                                <tbody id="papers-list"></tbody>
+                            </table>
+                        </div>
+                    </div><!-- end Paper Management card -->
+
+                </div><!-- end profile-section -->
 
                 <!-- Reports Section -->
                 <div id="reports-section" class="d-none">
@@ -273,7 +301,8 @@
                                         <th>ID</th>
                                         <th>Student Name</th>
                                         <th>Paper</th>
-                                        <th>Time</th>
+                                        <th>Date / Time</th>
+                                        <th>Scanned By</th>
                                     </tr>
                                 </thead>
                                 <tbody id="detailed-attendance-table"></tbody>
@@ -299,10 +328,6 @@
                 <i class='bx bx-user-circle'></i>
                 <span>Profile</span>
             </a>
-            <a href="https://malakapriyadarshana.lk" target="_blank" class="mobile-nav-item">
-                <i class='bx bx-globe'></i>
-                <span>Website</span>
-            </a>
         </nav>
 
     </div><!-- end dashboard-layout -->
@@ -326,6 +351,50 @@
             <h2 class="mt-4">Success!</h2>
             <p id="success-msg" class="mt-2" style="font-size: 18px;"></p>
             <p class="text-muted mt-4" style="font-size: 12px;">Tap anywhere to close (Auto-closes in 5s)</p>
+        </div>
+    </div>
+
+    <!-- Warning Modal (Duplicate Block) -->
+    <div class="modal-overlay" id="warning-modal" onclick="closeWarningModal()">
+        <div class="modal-content glass text-center" style="border-color: var(--danger-color);">
+            <i class='bx bxs-error-circle' style="font-size: 80px; color: var(--danger-color);"></i>
+            <h2 class="mt-4" style="color: var(--danger-color);">Duplicate Entry!</h2>
+            <p id="warning-msg" class="mt-2" style="font-size: 18px; font-weight: 600;"></p>
+            <p class="text-muted mt-4" style="font-size: 12px;">This student has already submitted this paper.<br>Tap anywhere to close.</p>
+        </div>
+    </div>
+
+
+    <!-- Add Paper Modal -->
+    <div class="modal-overlay" id="add-paper-modal">
+        <div class="modal-content glass" style="max-width:420px;">
+            <button class="close-btn" onclick="closeAddPaperModal()">&times;</button>
+            <h3 style="margin-bottom:20px;"><i class='bx bx-book-add' style="color:var(--primary-color);"></i> Add New Paper</h3>
+
+            <div class="input-group">
+                <label>Category <span style="color:var(--danger-color)">*</span></label>
+                <input type="text" id="new-paper-category" placeholder="e.g. Black Paper, Special, Model Exam">
+            </div>
+            <div class="input-group">
+                <label>Paper Number / Full Name <span style="color:var(--danger-color)">*</span></label>
+                <input type="text" id="new-paper-number" placeholder="e.g. Black Paper 61, Model Exam A">
+                <small class="text-muted" style="font-size:11px; margin-top:4px; display:block;">This name is used in attendance records — must be unique.</small>
+            </div>
+            <div class="input-group">
+                <label>Unique Code <span class="text-muted" style="font-size:11px;">(Optional)</span></label>
+                <input type="text" id="new-paper-code" placeholder="e.g. BP61, MEA">
+            </div>
+            <div class="input-group">
+                <label>Sort Order <span class="text-muted" style="font-size:11px;">(Optional)</span></label>
+                <input type="number" id="new-paper-sort" placeholder="e.g. 100" value="100">
+            </div>
+
+            <div style="display:flex; gap:10px; margin-top:20px;">
+                <button class="btn btn-primary" style="flex:1;" onclick="addPaper()">
+                    <i class='bx bx-check'></i> Save Paper
+                </button>
+                <button class="btn btn-danger" onclick="closeAddPaperModal()">Cancel</button>
+            </div>
         </div>
     </div>
 
