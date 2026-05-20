@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="si">
+<html lang="en" class="dark">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
@@ -7,44 +7,98 @@
     <meta name="description" content="Use your smartphone as a remote scanner for the Zeon Opera SFT Paper Management System.">
     <meta name="author" content="Zeon Opera Horana">
     <meta name="robots" content="noindex, nofollow">
+    
+    <!-- CSS System -->
     <link rel="stylesheet" href="css/style.css">
-    <link href='https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css' rel='stylesheet'>
+    
+    <!-- Google Fonts: Roboto & Material Symbols Rounded -->
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet" />
+    
+    <!-- Supabase & HTML5 QR Library -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
-    <style>
-        body { background: #020617; color: white; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; margin: 0; padding: 20px; box-sizing: border-box; }
-        .scanner-box { width: 100%; max-width: 400px; text-align: center; }
-        #reader { width: 100%; border-radius: 20px; overflow: hidden; border: 2px solid var(--primary-color); }
-        .status { margin-top: 20px; font-size: 14px; color: var(--text-muted); }
-        .btn-stop { background: var(--danger-color); color: white; border: none; padding: 12px 24px; border-radius: 12px; margin-top: 20px; cursor: pointer; width: 100%; font-weight: 600; }
-        .header { margin-bottom: 30px; text-align: center; }
-        .header img { width: 60px; margin-bottom: 10px; }
-    </style>
+    
+    <!-- Tailwind Config for adaptive layouts -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Roboto', 'sans-serif'],
+                    },
+                    colors: {
+                        m3: {
+                            primary: '#80DCA0',
+                            onPrimary: '#00391E',
+                            primaryContainer: '#00522E',
+                            onPrimaryContainer: '#9CF9BA',
+                            secondary: '#B4CCB7',
+                            onSecondary: '#203525',
+                            secondaryContainer: '#364B3B',
+                            onSecondaryContainer: '#D0E8D2',
+                            tertiary: '#A1CFD2',
+                            onTertiary: '#00373A',
+                            tertiaryContainer: '#1E4E51',
+                            onTertiaryContainer: '#BCEBEE',
+                            background: '#191C19',
+                            onBackground: '#E1E3DF',
+                            surface: '#121412',
+                            onSurface: '#E1E3DF',
+                            surfaceVariant: '#414942',
+                            onSurfaceVariant: '#C1C8C1',
+                            outline: '#8B938B',
+                            error: '#FFB4AB',
+                            onError: '#690005'
+                        }
+                    }
+                }
+            }
+        }
+    </script>
 </head>
-<body>
-    <div class="scanner-box">
-        <div class="header">
-            <img src="logo.png" alt="Logo">
-            <h2>Remote Scanner</h2>
-            <p id="instructor-name" style="color: var(--primary-color);">Connecting...</p>
-        </div>
+<body class="antialiased bg-m3-background text-m3-onBackground min-h-screen flex flex-col justify-center items-center px-4 py-8">
+    <div class="w-full max-w-md flex flex-col gap-6">
+        <!-- Main Card Container -->
+        <div class="m3-card m3-card-elevated border border-m3-outline/10 p-6 sm:p-8 flex flex-col items-center">
+            
+            <!-- Header Section -->
+            <div class="header text-center mb-6 flex flex-col items-center">
+                <!-- MiniLogo.png tall vertical preservation -->
+                <img src="MiniLogo.png" alt="Logo" class="h-16 w-auto object-contain mb-4 filter drop-shadow-[0_0_12px_rgba(128,220,160,0.25)]">
+                <h2 class="text-2xl font-bold text-m3-primary tracking-wide">Remote Scanner</h2>
+                <p id="instructor-name" class="text-sm text-m3-onSurfaceVariant mt-1 transition-all">Connecting to PC / සම්බන්ධ වෙමින්...</p>
+            </div>
 
-        <div id="reader"></div>
-        
-        <div class="status" id="connection-status">
-            <i class='bx bx-loader-alt bx-spin'></i> Initializing Realtime...
-        </div>
+            <!-- QR Reader Box -->
+            <div class="w-full overflow-hidden rounded-2xl border-2 border-m3-primary/30 bg-m3-surfaceVariant/10 aspect-square flex items-center justify-center relative">
+                <div id="reader" class="w-full h-full"></div>
+            </div>
+            
+            <!-- Connection Status -->
+            <div class="status text-m3-onSurfaceVariant text-sm flex items-center justify-center gap-2 mt-6 select-none bg-m3-surfaceVariant/20 px-4 py-2 rounded-full border border-m3-outline/10" id="connection-status">
+                <span class="material-symbols-rounded animate-spin text-m3-onSurfaceVariant text-lg">autorenew</span>
+                <span>Initializing Realtime...</span>
+            </div>
 
-        <button id="start-btn" class="btn btn-primary w-100" style="margin-top:20px;" onclick="startRemoteScanner()">
-            <i class='bx bx-camera'></i> Start Camera
-        </button>
-        <button id="stop-btn" class="btn-stop d-none" onclick="stopRemoteScanner()">
-            <i class='bx bx-stop-circle'></i> Stop Camera
-        </button>
+            <!-- Action Buttons -->
+            <button id="start-btn" class="m3-btn m3-btn-filled w-full ripple-target flex items-center justify-center gap-2 mt-6 h-12" onclick="startRemoteScanner()">
+                <span class="material-symbols-rounded">photo_camera</span>
+                <span>Start Camera</span>
+            </button>
+            
+            <button id="stop-btn" class="m3-btn m3-btn-filled bg-m3-error text-m3-onError hover:bg-m3-error/90 w-full ripple-target flex items-center justify-center gap-2 mt-6 h-12 d-none" onclick="stopRemoteScanner()">
+                <span class="material-symbols-rounded">videocam_off</span>
+                <span>Stop Camera</span>
+            </button>
+        </div>
     </div>
 
+    <!-- M3 Styled Toast -->
     <div id="toast" class="toast">
-        <i class='bx bx-info-circle'></i>
+        <span class="material-symbols-rounded">info</span>
         <span id="toast-msg">Message</span>
     </div>
 
@@ -72,7 +126,10 @@
             })
             .subscribe((status) => {
                 if (status === 'SUBSCRIBED') {
-                    document.getElementById('connection-status').innerHTML = "<i class='bx bxs-check-circle' style='color:var(--primary-color)'></i> Ready to scan";
+                    document.getElementById('connection-status').innerHTML = `
+                        <span class="material-symbols-rounded text-m3-primary text-lg icon-filled">check_circle</span>
+                        <span>Ready to scan</span>
+                    `;
                     document.getElementById('instructor-name').innerText = "Connected to PC";
                     // Send join message
                     channel.send({ type: 'broadcast', event: 'join', payload: { device: 'phone' } });

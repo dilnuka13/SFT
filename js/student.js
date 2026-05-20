@@ -50,6 +50,9 @@ async function searchStudent() {
     document.getElementById('display-name').innerText = fullName || 'New Student';
     document.getElementById('display-id').innerText = data.class_id;
 
+    // Generate personal QR for verified student
+    generateStudentPersonalQR(data.class_id);
+
     document.getElementById('first-name').value = data.first_name || '';
     document.getElementById('last-name').value = data.last_name || '';
     document.getElementById('nic').value = data.nic || '';
@@ -139,7 +142,7 @@ async function loadStudentPapers(classId) {
     const badgeEl  = document.getElementById('paper-count-badge');
 
     listEl.innerHTML = `<div style="text-align:center; padding:24px 0;">
-        <i class='bx bx-loader-alt bx-spin' style="font-size:24px; color:var(--text-muted);"></i>
+        <span class="material-symbols-rounded animate-spin text-m3-onSurfaceVariant text-2xl">autorenew</span>
     </div>`;
 
     const { data, error } = await supabaseClient
@@ -158,7 +161,7 @@ async function loadStudentPapers(classId) {
     if (data.length === 0) {
         listEl.innerHTML = `
             <div style="text-align:center; padding:24px 0;">
-                <i class='bx bx-book-bookmark' style="font-size:40px; color:var(--text-muted); opacity:0.4;"></i>
+                <span class="material-symbols-rounded text-4xl text-m3-onSurfaceVariant/40">import_contacts</span>
                 <p class="text-muted" style="font-size:13px; margin-top:10px;">No papers recorded yet.</p>
             </div>`;
         return;
@@ -219,6 +222,7 @@ function showRegistration(prefillId = '') {
 
 function startRegScanner() {
     document.getElementById('reg-scan-btn').classList.add('d-none');
+    document.getElementById('reg-stop-btn').classList.remove('d-none');
     regScanner = new Html5Qrcode("student-reader");
     regScanner.start(
         { facingMode: "environment" },
@@ -233,6 +237,7 @@ function startRegScanner() {
     ).catch(err => {
         showToast("Scanner Error: " + err, "error");
         document.getElementById('reg-scan-btn').classList.remove('d-none');
+        document.getElementById('reg-stop-btn').classList.add('d-none');
     });
 }
 
@@ -240,6 +245,7 @@ function stopRegScanner() {
     if (regScanner) {
         regScanner.stop().then(() => {
             document.getElementById('reg-scan-btn').classList.remove('d-none');
+            document.getElementById('reg-stop-btn').classList.add('d-none');
         }).catch(err => console.log(err));
     }
 }
@@ -283,4 +289,20 @@ async function registerStudent() {
         showToast('Account created successfully!');
         setTimeout(() => location.reload(), 2000);
     }
+}
+
+// Generate the student personal Class ID QR code on the client-side
+let personalQrInstance = null;
+function generateStudentPersonalQR(classId) {
+    const qrContainer = document.getElementById('student-personal-qr');
+    if (!qrContainer) return;
+    qrContainer.innerHTML = '';
+    personalQrInstance = new QRCode(qrContainer, {
+        text: classId,
+        width: 160,
+        height: 160,
+        colorDark : "#000000",
+        colorLight : "#ffffff",
+        correctLevel : QRCode.CorrectLevel.H
+    });
 }

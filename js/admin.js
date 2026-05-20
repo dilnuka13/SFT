@@ -122,20 +122,24 @@ async function loadInstructors() {
     tbody.innerHTML = data.map(inst => `
         <tr>
             <td style="display: flex; align-items: center; gap: 12px;">
-                <img src="${inst.avatar_url || 'https://via.placeholder.com/40'}" class="avatar-img">
-                <span>${inst.name}</span>
+                <img src="${inst.avatar_url || 'https://via.placeholder.com/40'}" class="avatar-img w-9 h-9 rounded-xl object-cover border border-m3-primary/20">
+                <span class="font-medium">${inst.name}</span>
             </td>
-            <td>${inst.name.toLowerCase().replace(' ', '_')}</td>
+            <td class="text-m3-onSurfaceVariant">${inst.name.toLowerCase().replace(' ', '_')}</td>
             <td>
                 ${inst.temp_password 
                     ? '<span class="badge badge-warning">Temp Password</span>' 
                     : '<span class="badge badge-success">Active</span>'}
             </td>
-            <td style="font-size: 13px; color: var(--text-muted);">${new Date(inst.created_at).toLocaleDateString()}</td>
+            <td style="font-size: 13px; color: var(--md-sys-color-on-surface-variant);">${new Date(inst.created_at).toLocaleDateString()}</td>
             <td>
-                <div style="display: flex; gap: 5px;">
-                    <button class="btn" style="padding: 6px 10px;" onclick="resetInstructorPassword('${inst.id}')" title="Reset Password"><i class='bx bx-reset'></i></button>
-                    <button class="btn btn-danger" style="padding: 6px 10px;" onclick="deleteInstructor('${inst.id}')" title="Delete"><i class='bx bx-trash'></i></button>
+                <div style="display: flex; gap: 6px;">
+                    <button class="m3-btn m3-btn-tonal w-9 h-9 p-0 rounded-xl flex items-center justify-center ripple-target" onclick="resetInstructorPassword('${inst.id}')" title="Reset Password">
+                        <span class="material-symbols-rounded text-base">lock_reset</span>
+                    </button>
+                    <button class="m3-btn m3-btn-filled bg-m3-error text-white hover:bg-red-600 w-9 h-9 p-0 rounded-xl flex items-center justify-center ripple-target" onclick="deleteInstructor('${inst.id}')" title="Delete">
+                        <span class="material-symbols-rounded text-base">delete</span>
+                    </button>
                 </div>
             </td>
         </tr>
@@ -265,13 +269,15 @@ function renderStudents(students, query = '') {
 
     tbody.innerHTML = students.map(s => `
         <tr style="cursor: pointer;" onclick="showStudentDetails('${s.class_id}')">
-            <td style="font-weight: 600; color: var(--primary-color);">${highlight(s.class_id, query)}</td>
-            <td>${highlight(`${s.first_name || ''} ${s.last_name || ''}`, query)}</td>
+            <td style="font-weight: 600; color: var(--md-sys-color-primary);">${highlight(s.class_id, query)}</td>
+            <td class="font-medium">${highlight(`${s.first_name || ''} ${s.last_name || ''}`, query)}</td>
             <td><span class="badge badge-success">${s.paper_count} Papers</span></td>
             <td>${highlight(s.nic || '-', query)}</td>
             <td>${highlight(s.email || '-', query)}</td>
             <td>
-                <button class="btn btn-danger" style="padding: 6px 10px;" onclick="event.stopPropagation(); deleteStudent('${s.class_id}')"><i class='bx bx-trash'></i></button>
+                <button class="m3-btn m3-btn-filled bg-m3-error text-white hover:bg-red-600 w-9 h-9 p-0 rounded-xl flex items-center justify-center ripple-target" onclick="event.stopPropagation(); deleteStudent('${s.class_id}')">
+                    <span class="material-symbols-rounded text-base">delete</span>
+                </button>
             </td>
         </tr>
     `).join('');
@@ -339,13 +345,13 @@ async function loadResetRequests() {
     tbody.innerHTML = data.map(inst => `
         <tr>
             <td style="display: flex; align-items: center; gap: 12px;">
-                <img src="${inst.avatar_url}" class="avatar-img">
-                <span>${inst.name}</span>
+                <img src="${inst.avatar_url}" class="avatar-img w-9 h-9 rounded-xl object-cover border border-m3-primary/20">
+                <span class="font-medium">${inst.name}</span>
             </td>
-            <td style="color: var(--text-muted); font-size: 13px;">Recently</td>
+            <td style="color: var(--md-sys-color-on-surface-variant); font-size: 13px;">Recently</td>
             <td><span class="badge badge-warning">Pending Reset</span></td>
             <td>
-                <button class="btn btn-primary" onclick="resetInstructorPassword('${inst.id}')">Reset Now</button>
+                <button class="m3-btn m3-btn-filled h-9 px-4 text-xs rounded-xl flex items-center justify-center gap-1 ripple-target" onclick="resetInstructorPassword('${inst.id}')">Reset Now</button>
             </td>
         </tr>
     `).join('');
@@ -355,7 +361,7 @@ async function populateExportPapers() {
     const grid = document.getElementById('export-paper-grid');
     if (!grid) return;
 
-    grid.innerHTML = '<div style="padding:12px; color:var(--text-muted); font-size:13px;"><i class="bx bx-loader-alt bx-spin"></i> Loading papers...</div>';
+    grid.innerHTML = '<div style="padding:12px; color:var(--md-sys-color-on-surface-variant); font-size:13px; display:flex; align-items:center; gap:8px;"><span class="material-symbols-rounded animate-spin">autorenew</span> Loading papers...</div>';
 
     const { data, error } = await supabaseClient
         .from('papers')
@@ -460,15 +466,30 @@ async function generatePDF() {
     
     try {
         const logoBase64 = await getImageBase64('MiniLogo.png');
-        doc.addImage(logoBase64, 'PNG', 14, 4, 16, 16);
+        doc.addImage(logoBase64, 'PNG', 14, 4, 8, 16); // Preserved 1:2 aspect ratio (8mm width, 16mm height)
     } catch (e) {
         console.error('Logo failed to load', e);
     }
 
-    doc.setFontSize(18);
-    doc.text("Attendance & Marking Checklist", 50, 15);
-    doc.setFontSize(10);
-    doc.text(`Generated on: ${new Date().toLocaleString()} ${month ? `| Month: ${month}` : ''}`, 50, 22);
+    // Modern vertical accent line in M3 primary green [128, 220, 160]
+    doc.setDrawColor(128, 220, 160);
+    doc.setLineWidth(1.2);
+    doc.line(26, 4, 26, 20);
+
+    // Title & Brand Info
+    doc.setTextColor(25, 28, 25); // Sleek M3 dark charcoal text
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(15);
+    doc.text("Attendance & Marking Checklist", 30, 9);
+    
+    doc.setFont("helvetica", "normal");
+    doc.setTextColor(0, 82, 46); // Dark Green M3 Primary Container color
+    doc.setFontSize(9);
+    doc.text("Zeon Opera SFT - Horana Branch | Malaka Priyadarshana Sir", 30, 14);
+
+    doc.setTextColor(110, 115, 110); // M3 muted grey text
+    doc.setFontSize(8);
+    doc.text(`Generated on: ${new Date().toLocaleString()} ${month ? `| Month: ${month}` : ''}`, 30, 19);
 
     const head = [['ID', 'Name', 'Email', ...selectedPapers]];
     const body = studentList.map(s => {
@@ -482,20 +503,32 @@ async function generatePDF() {
     doc.autoTable({
         head: head,
         body: body,
-        startY: 30,
+        startY: 25,
         theme: 'grid',
         styles: { 
             fontSize: 8, 
-            cellPadding: 2, 
+            cellPadding: 2.5, 
             halign: 'center', 
-            valign: 'middle' 
+            valign: 'middle',
+            font: 'helvetica',
+            textColor: [40, 45, 40],
+            borderColor: [225, 230, 225] // Subtle green-grey outline border
         },
         columnStyles: {
-            0: { halign: 'left', cellWidth: 20 },
+            0: { halign: 'left', cellWidth: 20, fontStyle: 'bold' },
             1: { halign: 'left', cellWidth: 35 },
             2: { halign: 'left', cellWidth: 40 }
         },
-        headStyles: { fillColor: [16, 185, 129], textColor: 255 },
+        headStyles: { 
+            fillColor: [0, 82, 46], // Dark green M3 primary container
+            textColor: [255, 255, 255], 
+            fontStyle: 'bold',
+            fontSize: 8.5,
+            borderColor: [0, 82, 46]
+        },
+        alternateRowStyles: {
+            fillColor: [245, 250, 246] // Alternating light green-tinted background rows
+        },
         didParseCell: function(data) {
             if (data.section === 'body' && data.column.index >= 3 && data.cell.raw === 1) {
                 data.cell.text = [''];
@@ -507,11 +540,17 @@ async function generatePDF() {
                 const cx  = data.cell.x + data.cell.width  / 2;
                 const cy  = data.cell.y + data.cell.height / 2;
                 const r   = 3.2;
-                doc.setFillColor(16, 185, 129);
+
+                // Circle in M3 Primary Green
+                doc.setFillColor(128, 220, 160);
                 doc.circle(cx, cy, r, 'F');
-                doc.setDrawColor(255, 255, 255);
-                doc.setLineWidth(0.7);
+
+                // Contrast dark-green checkmark lines
+                doc.setDrawColor(0, 57, 30);
+                doc.setLineWidth(0.8);
+                // Short left stroke of tick
                 doc.line(cx - 1.6, cy,       cx - 0.4, cy + 1.4);
+                // Long right stroke of tick
                 doc.line(cx - 0.4, cy + 1.4, cx + 2.0, cy - 1.2);
             }
         }

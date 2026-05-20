@@ -224,7 +224,7 @@ function setupRemoteScanner() {
 
     remoteChannel
         .on('broadcast', { event: 'join' }, (payload) => {
-            document.getElementById('remote-status').innerHTML = `<i class='bx bxs-circle' style='color:var(--primary-color); font-size:8px;'></i> Phone Connected`;
+            document.getElementById('remote-status').innerHTML = `<span class="material-symbols-rounded text-[8px] text-m3-primary icon-filled animate-pulse mr-1">circle</span> Phone Connected`;
             showToast("Phone connected for remote scanning!");
             // Send acknowledgement
             remoteChannel.send({ type: 'broadcast', event: 'ping' });
@@ -857,11 +857,13 @@ function logout() {
 }
 
 // Reports & Export Logic
+let _detailedAttendance = [];
+
 async function loadReports() {
     const tbody = document.getElementById('detailed-attendance-table');
     if (!tbody) return;
 
-    tbody.innerHTML = '<tr><td colspan="5" class="text-center"><i class="bx bx-loader-alt bx-spin"></i> Loading...</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="6" class="text-center"><span class="material-symbols-rounded animate-spin text-m3-onSurfaceVariant text-lg mr-2 inline-block align-middle">autorenew</span> Loading...</td></tr>';
 
     const { data, error } = await supabaseClient
         .from('attendance')
@@ -888,38 +890,117 @@ async function loadReports() {
         return;
     }
 
-    tbody.innerHTML = data.map(row => {
+    _detailedAttendance = data || [];
+    applyFiltersAndSort();
+}
+
+function applyFiltersAndSort() {
+    const tbody = document.getElementById('detailed-attendance-table');
+    const countLabel = document.getElementById('filter-status-count');
+    if (!tbody) return;
+
+    const searchVal = document.getElementById('filter-search')?.value.toLowerCase().trim() || '';
+    const dateVal = document.getElementById('filter-date')?.value || '';
+    const catVal = document.getElementById('filter-category')?.value || 'All';
+    const sortVal = document.getElementById('filter-sort')?.value || 'newest';
+
+    // 1. Filtering
+    let filtered = _detailedAttendance.filter(row => {
+        // Search Match
+        const studentName = row.students ? `${row.students.first_name || ''} ${row.students.last_name || ''}`.toLowerCase() : 'not registered';
+        const matchSearch = searchVal === '' || 
+                            row.class_id.toLowerCase().includes(searchVal) || 
+                            studentName.includes(searchVal) || 
+                            row.paper_number.toLowerCase().includes(searchVal);
+
+        // Date Match
+        let matchDate = true;
+        if (dateVal !== '') {
+            const scannedDate = new Date(row.scanned_at).toISOString().split('T')[0];
+            matchDate = scannedDate === dateVal;
+        }
+
+        // Category Match
+        let matchCat = true;
+        if (catVal !== 'All') {
+            const paperObj = _allPapers.find(p => p.paper_number === row.paper_number);
+            matchCat = paperObj ? paperObj.category === catVal : (catVal === 'Other');
+        }
+
+        return matchSearch && matchDate && matchCat;
+    });
+
+    // 2. Sorting
+    filtered.sort((a, b) => {
+        if (sortVal === 'newest') {
+            return new Date(b.scanned_at) - new Date(a.scanned_at);
+        } else if (sortVal === 'oldest') {
+            return new Date(a.scanned_at) - new Date(b.scanned_at);
+        } else if (sortVal === 'name_asc') {
+            const nameA = a.students ? `${a.students.first_name || ''} ${a.students.last_name || ''}`.trim().toLowerCase() : 'zzz';
+            const nameB = b.students ? `${b.students.first_name || ''} ${b.students.last_name || ''}`.trim().toLowerCase() : 'zzz';
+            return nameA.localeCompare(nameB);
+        } else if (sortVal === 'name_desc') {
+            const nameA = a.students ? `${a.students.first_name || ''} ${a.students.last_name || ''}`.trim().toLowerCase() : 'zzz';
+            const nameB = b.students ? `${b.students.first_name || ''} ${b.students.last_name || ''}`.trim().toLowerCase() : 'zzz';
+            return nameB.localeCompare(nameA);
+        }
+        return 0;
+    });
+
+    if (countLabel) countLabel.innerText = `Showing ${filtered.length} of ${_detailedAttendance.length} records`;
+
+    if (filtered.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="6" class="text-center text-m3-onSurfaceVariant py-8"><span class="material-symbols-rounded text-xl block mb-2">filter_alt_off</span>No matching records found.</td></tr>';
+        return;
+    }
+
+    tbody.innerHTML = filtered.map(row => {
         const dt = new Date(row.scanned_at);
         const dateStr = dt.toLocaleDateString('si-LK', { year: 'numeric', month: '2-digit', day: '2-digit' });
         const timeStr = dt.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
         const instructorName = row.instructors?.name || '—';
         return `
         <tr>
-            <td style="font-weight: 600; color: var(--primary-color);">${row.class_id}</td>
-            <td>${row.students ? `${row.students.first_name || ''} ${row.students.last_name || ''}`.trim() || '<span class="text-muted">—</span>' : '<span class="text-muted">Not Registered</span>'}</td>
+            <td style="font-weight: 600; color: var(--md-sys-color-primary);">${row.class_id}</td>
+            <td>${row.students ? `${row.students.first_name || ''} ${row.students.last_name || ''}`.trim() || '<span class="text-muted">—</span>' : '<span class="text-muted text-xs bg-m3-error/10 border border-m3-error/20 px-2 py-0.5 rounded text-m3-error">Not Registered</span>'}</td>
             <td><span class="badge badge-success" style="font-size: 10px;">${row.paper_number}</span></td>
             <td style="font-size: 11px;">
-                <div style="color: var(--text-color); font-weight: 500;">${dateStr}</div>
-                <div style="color: var(--text-muted); font-size: 10px;">${timeStr}</div>
+                <div style="color: var(--md-sys-color-on-background); font-weight: 500;">${dateStr}</div>
+                <div style="color: var(--md-sys-color-on-surface-variant); font-size: 10px;">${timeStr}</div>
             </td>
-            <td style="font-size: 11px;">
+            <td class="hidden sm:table-cell" style="font-size: 11px;">
                 <div style="display:flex; align-items:center; gap:5px;">
-                    <i class='bx bx-user-voice' style="color:var(--primary-color); font-size:13px;"></i>
+                    <span class="material-symbols-rounded text-m3-primary text-sm">record_voice_over</span>
                     <span>${instructorName}</span>
                 </div>
             </td>
             <td>
-                <div style="display: flex; gap: 5px;">
-                    <button class="btn btn-primary" style="padding: 4px 8px; font-size: 12px;" onclick="openEditAttendanceModal('${row.id}', '${row.class_id}', '${row.paper_number}', '${row.note || ''}')">
-                        <i class='bx bx-edit'></i>
+                <div style="display: flex; gap: 5px; justify-content: flex-end;">
+                    <button class="m3-btn m3-btn-tonal !h-8 !px-3 rounded-lg" onclick="openEditAttendanceModal('${row.id}', '${row.class_id}', '${row.paper_number}', '${row.note || ''}')">
+                        <span class="material-symbols-rounded text-sm">edit</span>
                     </button>
-                    <button class="btn btn-danger" style="padding: 4px 8px; font-size: 12px;" onclick="deleteAttendance('${row.id}')">
-                        <i class='bx bx-trash'></i>
+                    <button class="m3-btn !bg-m3-error/10 text-m3-error hover:!bg-m3-error hover:!text-white !h-8 !px-3 rounded-lg border border-m3-error/20" onclick="deleteAttendance('${row.id}')">
+                        <span class="material-symbols-rounded text-sm">delete</span>
                     </button>
                 </div>
             </td>
         </tr>`;
     }).join('');
+}
+
+function resetFilters() {
+    const search = document.getElementById('filter-search');
+    const date = document.getElementById('filter-date');
+    const category = document.getElementById('filter-category');
+    const sort = document.getElementById('filter-sort');
+
+    if (search) search.value = '';
+    if (date) date.value = '';
+    if (category) category.value = 'All';
+    if (sort) sort.value = 'newest';
+
+    applyFiltersAndSort();
 }
 
 async function populatePaperSelect() {
@@ -950,16 +1031,54 @@ async function populateExportPapers() {
     }
 
     grid.innerHTML = papers.map(p => `
-        <label class="glass" style="display: flex; align-items: center; gap: 8px; padding: 8px; cursor: pointer;">
-            <input type="checkbox" class="paper-checkbox" value="${p.paper_number}"
-                style="width: 16px; height: 16px; accent-color: var(--primary-color);">
-            <span style="font-size: 11px;">${p.paper_number}</span>
+        <label class="paper-landscape-card flex border border-m3-outline/10 hover:border-m3-primary/30 rounded-2xl overflow-hidden cursor-pointer relative transition-all" id="export-card-${p.id}">
+            <!-- Hidden checkbox -->
+            <input type="checkbox" class="paper-checkbox hidden" value="${p.paper_number}" onchange="togglePaperCard('${p.id}', this.checked)">
+            
+            <!-- Left division: Thumbnail (Document preview representation) -->
+            <div class="w-1/3 bg-m3-surfaceVariant/30 flex flex-col items-center justify-center border-r border-m3-outline/10 p-2 text-center select-none relative">
+                <span class="material-symbols-rounded text-3xl text-m3-primary mb-1">description</span>
+                <span class="text-[9px] font-bold tracking-wider text-m3-onSurfaceVariant uppercase truncate max-w-full">${p.category}</span>
+                
+                <!-- Active visual indicator overlay when checked -->
+                <div class="active-indicator absolute inset-0 bg-m3-primaryContainer/20 flex items-center justify-center opacity-0 transition-opacity pointer-events-none">
+                    <span class="material-symbols-rounded text-4xl text-m3-primary icon-filled">check_circle</span>
+                </div>
+            </div>
+            
+            <!-- Right division: Details -->
+            <div class="w-2/3 p-3 flex flex-col justify-between relative">
+                <!-- Checklist status / quick details info icon -->
+                <button type="button" class="absolute top-2 right-2 text-m3-onSurfaceVariant hover:text-m3-primary transition-colors h-7 w-7 rounded-full hover:bg-m3-surfaceVariant/50 flex items-center justify-center" onclick="event.stopPropagation(); viewPaperQuickDetails('${p.paper_number.replace(/'/g, "\\'")}', '${p.unique_code || ''}', '${p.category}')">
+                    <span class="material-symbols-rounded text-lg">info</span>
+                </button>
+
+                <div class="pr-6">
+                    <h4 class="font-bold text-xs text-m3-onSurface leading-tight truncate" title="${p.paper_number}">${p.paper_number}</h4>
+                    <p class="text-[10px] text-m3-onSurfaceVariant mt-1">Code: <span class="font-mono text-m3-primary">${p.unique_code || '—'}</span></p>
+                    <p class="text-[9px] text-m3-onSurfaceVariant mt-0.5">Order: ${p.sort_order}</p>
+                </div>
+                
+                <div class="flex items-center justify-between mt-2 pt-2 border-t border-m3-outline/5 text-[9px] text-m3-onSurfaceVariant">
+                    <span>Click to Select</span>
+                    <span class="flex items-center gap-1 font-bold select-state text-m3-onSurfaceVariant">
+                        <span class="material-symbols-rounded text-xs">check_box_outline_blank</span>
+                    </span>
+                </div>
+            </div>
         </label>
     `).join('');
 }
 
 function selectAllPapers(checked) {
-    document.querySelectorAll('.paper-checkbox').forEach(cb => cb.checked = checked);
+    document.querySelectorAll('.paper-checkbox').forEach(cb => {
+        cb.checked = checked;
+        const label = cb.closest('label');
+        if (label) {
+            const id = label.id.replace('export-card-', '');
+            togglePaperCard(id, checked);
+        }
+    });
 }
 
 function getImageBase64(url) {
@@ -1043,21 +1162,35 @@ async function generatePDF() {
     
     try {
         const logoBase64 = await getImageBase64('MiniLogo.png');
-        doc.addImage(logoBase64, 'PNG', 14, 4, 16, 16);
+        doc.addImage(logoBase64, 'PNG', 14, 4, 8, 16); // Preserved 1:2 aspect ratio (8mm width, 16mm height)
     } catch (e) {
         console.error('Logo failed to load', e);
     }
 
-    doc.setFontSize(18);
-    doc.text("Attendance & Marking Checklist", 50, 15);
-    doc.setFontSize(10);
-    doc.text(`Generated on: ${new Date().toLocaleString()} ${month ? `| Month: ${month}` : ''}`, 50, 22);
+    // Modern vertical accent line in M3 primary green [128, 220, 160]
+    doc.setDrawColor(128, 220, 160);
+    doc.setLineWidth(1.2);
+    doc.line(26, 4, 26, 20);
+
+    // Title & Brand Info
+    doc.setTextColor(25, 28, 25); // Sleek M3 dark charcoal text
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(15);
+    doc.text("Attendance & Marking Checklist", 30, 9);
+    
+    doc.setFont("helvetica", "normal");
+    doc.setTextColor(0, 82, 46); // Dark Green M3 Primary Container color
+    doc.setFontSize(9);
+    doc.text("Zeon Opera SFT - Horana Branch | Malaka Priyadarshana Sir", 30, 14);
+
+    doc.setTextColor(110, 115, 110); // M3 muted grey text
+    doc.setFontSize(8);
+    doc.text(`Generated on: ${new Date().toLocaleString()} ${month ? `| Month: ${month}` : ''}`, 30, 19);
 
     const head = [['ID', 'Name', 'Email', ...selectedPapers]];
     const body = studentList.map(s => {
         const row = [s.id, s.name, s.email];
         selectedPapers.forEach(paper => {
-            // Use 1 as a marker (text hidden; drawn via didDrawCell)
             row.push(s.papers[paper] ? 1 : '');
         });
         return row;
@@ -1066,20 +1199,32 @@ async function generatePDF() {
     doc.autoTable({
         head: head,
         body: body,
-        startY: 30,
+        startY: 25,
         theme: 'grid',
         styles: { 
             fontSize: 8, 
-            cellPadding: 2, 
+            cellPadding: 2.5, 
             halign: 'center', 
-            valign: 'middle' 
+            valign: 'middle',
+            font: 'helvetica',
+            textColor: [40, 45, 40],
+            borderColor: [225, 230, 225] // Subtle green-grey outline border
         },
         columnStyles: {
-            0: { halign: 'left', cellWidth: 20 },
+            0: { halign: 'left', cellWidth: 20, fontStyle: 'bold' },
             1: { halign: 'left', cellWidth: 35 },
             2: { halign: 'left', cellWidth: 40 }
         },
-        headStyles: { fillColor: [16, 185, 129], textColor: 255 },
+        headStyles: { 
+            fillColor: [0, 82, 46], // Dark green M3 primary container
+            textColor: [255, 255, 255], 
+            fontStyle: 'bold',
+            fontSize: 8.5,
+            borderColor: [0, 82, 46]
+        },
+        alternateRowStyles: {
+            fillColor: [245, 250, 246] // Alternating light green-tinted background rows
+        },
         didParseCell: function(data) {
             // Hide the numeric marker — graphic drawn in didDrawCell
             if (data.section === 'body' && data.column.index >= 3 && data.cell.raw === 1) {
@@ -1093,13 +1238,13 @@ async function generatePDF() {
                 const cy   = data.cell.y + data.cell.height / 2;
                 const r    = 3.2;
 
-                // Green filled circle
-                doc.setFillColor(16, 185, 129);
+                // Circle in M3 Primary Green
+                doc.setFillColor(128, 220, 160);
                 doc.circle(cx, cy, r, 'F');
 
-                // White checkmark lines
-                doc.setDrawColor(255, 255, 255);
-                doc.setLineWidth(0.7);
+                // Contrast dark-green checkmark lines
+                doc.setDrawColor(0, 57, 30);
+                doc.setLineWidth(0.8);
                 // Short left stroke of tick
                 doc.line(cx - 1.6, cy,       cx - 0.4, cy + 1.4);
                 // Long right stroke of tick
@@ -1118,8 +1263,8 @@ let _allPapers = [];
 async function loadPapers() {
     const loadingEl  = document.getElementById('papers-loading');
     const wrapEl     = document.getElementById('papers-table-wrap');
-    if (loadingEl) loadingEl.style.display = 'block';
-    if (wrapEl)    wrapEl.style.display = 'none';
+    if (loadingEl) loadingEl.classList.remove('d-none');
+    if (wrapEl)    wrapEl.classList.add('d-none');
 
     const { data, error } = await supabaseClient
         .from('papers')
@@ -1128,18 +1273,21 @@ async function loadPapers() {
 
     if (error) { showToast(error.message, 'error'); return; }
     _allPapers = data;
+    
+    // Generate quick category count selector chips dynamically
+    generateCategoryChips();
 
-    if (loadingEl) loadingEl.style.display = 'none';
-    if (wrapEl)    wrapEl.style.display = 'block';
+    if (loadingEl) loadingEl.classList.add('d-none');
+    if (wrapEl)    wrapEl.classList.remove('d-none');
 
     const tbody = document.getElementById('papers-list');
     if (tbody) {
         tbody.innerHTML = data.map((p, i) => `
             <tr style="opacity: ${p.is_active ? 1 : 0.45};">
-                <td style="color:var(--text-muted);">${i + 1}</td>
+                <td class="hidden sm:table-cell" style="color:var(--text-muted);">${i + 1}</td>
                 <td style="font-weight:600;">${p.paper_number}</td>
                 <td><span class="badge" style="background:rgba(16,185,129,0.1); color:var(--primary-color); font-size:10px;">${p.category}</span></td>
-                <td style="color:var(--text-muted); font-size:11px;">${p.unique_code || '—'}</td>
+                <td class="hidden sm:table-cell" style="color:var(--text-muted); font-size:11px;">${p.unique_code || '—'}</td>
                 <td>
                     <label style="cursor:pointer; display:flex; align-items:center; gap:6px; font-size:11px;">
                         <input type="checkbox" ${p.is_active ? 'checked' : ''}
@@ -1149,9 +1297,9 @@ async function loadPapers() {
                     </label>
                 </td>
                 <td>
-                    <button class="btn btn-danger" style="padding:4px 8px; font-size:11px;"
+                    <button class="m3-btn !bg-m3-error/10 text-m3-error hover:!bg-m3-error hover:!text-white !h-8 !w-8 !p-0 rounded-full flex items-center justify-center border border-m3-error/20"
                         onclick="deletePaper('${p.id}', \`${p.paper_number.replace(/`/g, '\\`')}\`)">
-                        <i class='bx bx-trash'></i>
+                        <span class="material-symbols-rounded text-sm">delete</span>
                     </button>
                 </td>
             </tr>
@@ -1167,7 +1315,13 @@ async function addPaper() {
     const category = document.getElementById('new-paper-category').value.trim();
     const number   = document.getElementById('new-paper-number').value.trim();
     const code     = document.getElementById('new-paper-code').value.trim();
-    const sort     = parseInt(document.getElementById('new-paper-sort').value) || 100;
+    let sort       = parseInt(document.getElementById('new-paper-sort').value);
+
+    if (isNaN(sort) || sort === 100) {
+        // Fallback: extract digits from paper name/title (e.g. "Black Paper 61" -> 61)
+        const match = number.match(/\d+/);
+        sort = match ? parseInt(match[0]) : 100;
+    }
 
     if (!category || !number) {
         showToast('Category and Paper Name are required.', 'error');
@@ -1204,13 +1358,95 @@ async function togglePaperStatus(id, isActive) {
     else loadPapers();
 }
 
+// Helper to get next paper number in a category based on existing papers in _allPapers
+function getNextPaperNumber(category) {
+    let maxNum = 0;
+    if (_allPapers && _allPapers.length > 0) {
+        _allPapers.forEach(p => {
+            if (p.category && p.category.toLowerCase() === category.toLowerCase()) {
+                // Extract numerical digits using regex (e.g. from "Black Paper 61" -> 61)
+                const match = p.paper_number.match(/\d+/);
+                if (match) {
+                    const num = parseInt(match[0]);
+                    if (num > maxNum) {
+                        maxNum = num;
+                    }
+                }
+            }
+        });
+    }
+    return maxNum + 1;
+}
+
+// Global variables to track selected category values
+let selectedCategoryValue = '';
+let selectedShortCodePrefix = '';
+
+function selectQuickCategory(categoryVal, shortCodePrefix) {
+    selectedCategoryValue = categoryVal;
+    selectedShortCodePrefix = shortCodePrefix;
+
+    // Highlight active chip
+    const chips = document.querySelectorAll('.category-chip');
+    chips.forEach(chip => {
+        if (chip.innerText.trim() === categoryVal || (categoryVal === 'Other' && chip.innerText.trim() === 'Other')) {
+            chip.classList.add('bg-m3-primaryContainer', 'text-m3-onPrimaryContainer', 'border-m3-primary');
+            chip.classList.remove('border-m3-outline/30');
+        } else {
+            chip.classList.remove('bg-m3-primaryContainer', 'text-m3-onPrimaryContainer', 'border-m3-primary');
+            chip.classList.add('border-m3-outline/30');
+        }
+    });
+
+    const customCategoryGroup = document.getElementById('custom-category-group');
+    const categoryInput = document.getElementById('new-paper-category');
+    
+    if (categoryVal === 'Other') {
+        if (customCategoryGroup) customCategoryGroup.classList.remove('d-none');
+        if (categoryInput) {
+            categoryInput.value = '';
+            categoryInput.focus();
+        }
+        
+        // Let user fill in everything manually
+        document.getElementById('new-paper-number').value = '';
+        document.getElementById('new-paper-code').value = '';
+    } else {
+        if (customCategoryGroup) customCategoryGroup.classList.add('d-none');
+        if (categoryInput) categoryInput.value = categoryVal;
+        
+        // Auto-increment and auto-populate
+        const nextNum = getNextPaperNumber(categoryVal);
+        
+        // Title: "<Category> <Next Number>"
+        document.getElementById('new-paper-number').value = `${categoryVal} ${nextNum}`;
+        
+        // Code: "<Prefix><Next Number>"
+        document.getElementById('new-paper-code').value = `${shortCodePrefix}${nextNum}`;
+
+        // Sort Order Priority: "<Next Number>"
+        document.getElementById('new-paper-sort').value = nextNum;
+    }
+}
+
 function openAddPaperModal() {
     document.getElementById('new-paper-category').value = '';
     document.getElementById('new-paper-number').value   = '';
     document.getElementById('new-paper-code').value     = '';
     document.getElementById('new-paper-sort').value     = '100';
+    
+    // Reset quick category chips
+    document.querySelectorAll('.category-chip').forEach(chip => {
+        chip.classList.remove('bg-m3-primaryContainer', 'text-m3-onPrimaryContainer', 'border-m3-primary');
+        chip.classList.add('border-m3-outline/30');
+    });
+    
+    const customGroup = document.getElementById('custom-category-group');
+    if (customGroup) customGroup.classList.add('d-none');
+    
     document.getElementById('add-paper-modal').classList.add('active');
 }
+
 function closeAddPaperModal() {
     document.getElementById('add-paper-modal').classList.remove('active');
 }
@@ -1223,8 +1459,237 @@ window.addEventListener('load', () => {
         currentInstructor = JSON.parse(saved);
         enterDashboard();
         // Restore tab from URL hash
-        const validTabs = ['scanner', 'reports', 'profile'];
+        const validTabs = ['scanner', 'attendance', 'reports', 'papers', 'profile'];
         const hash = window.location.hash.replace('#', '');
         if (validTabs.includes(hash)) switchTab(hash);
+    }
+
+    // Auto-update Sort Order Priority when typing the paper title manually
+    document.getElementById('new-paper-number')?.addEventListener('input', (e) => {
+        const match = e.target.value.match(/\d+/);
+        if (match) {
+            document.getElementById('new-paper-sort').value = match[0];
+        }
+    });
+});
+
+/* ==========================================================================
+   PREMIUM PORTAL INTERACTION FUNCTIONS (Drawer, Chips, Landscape Cards)
+   ========================================================================== */
+
+/**
+ * Dynamically scans active papers to generate quick category count chips.
+ */
+function generateCategoryChips() {
+    const chipContainer = document.getElementById('quick-category-chips');
+    if (!chipContainer) return;
+
+    // Get active papers
+    const activePapers = _allPapers.filter(p => p.is_active);
+
+    // Count papers per category
+    const counts = {};
+    activePapers.forEach(p => {
+        const cat = p.category || 'Other';
+        counts[cat] = (counts[cat] || 0) + 1;
+    });
+
+    // Default categories in desired order
+    const defaultCategories = [
+        'Black Paper',
+        'Wave Paper',
+        'Full Paper',
+        'Special Paper',
+        'Ranking Paper',
+        'Physics',
+        'Chemistry',
+        'Combined Maths',
+        'ICT'
+    ];
+
+    const categoriesToShow = [];
+    
+    // Map default ones first
+    defaultCategories.forEach(cat => {
+        if (counts[cat] > 0) {
+            categoriesToShow.push({ name: cat, count: counts[cat] });
+        }
+    });
+
+    // Map any custom ones
+    Object.keys(counts).forEach(cat => {
+        if (!defaultCategories.includes(cat)) {
+            categoriesToShow.push({ name: cat, count: counts[cat] });
+        }
+    });
+
+    if (categoriesToShow.length === 0) {
+        chipContainer.innerHTML = '<span class="text-xs text-m3-onSurfaceVariant py-2">No active papers found.</span>';
+        return;
+    }
+
+    chipContainer.innerHTML = categoriesToShow.map(c => `
+        <div class="category-select-chip ripple-target" onclick="openCategoryDrawer('${c.name.replace(/'/g, "\\'")}')">
+            <span class="material-symbols-rounded text-sm text-m3-primary">bookmark</span>
+            <span>${c.name}</span>
+            <span class="text-xs bg-m3-primaryContainer/30 text-m3-primary px-1.5 py-0.5 rounded-full font-bold">${c.count}</span>
+        </div>
+    `).join('');
+}
+
+let _currentDrawerCategory = '';
+
+/**
+ * Opens slide-up bottom drawer overlay showing category papers.
+ */
+function openCategoryDrawer(category) {
+    _currentDrawerCategory = category;
+    const drawer = document.getElementById('category-papers-drawer');
+    const title = document.getElementById('drawer-category-title');
+    const searchInput = document.getElementById('drawer-search-input');
+
+    if (title) title.innerHTML = `<span class="material-symbols-rounded text-m3-primary">bookmark</span> ${category}`;
+    if (searchInput) searchInput.value = '';
+
+    if (drawer) {
+        drawer.classList.add('active');
+        document.body.style.overflow = 'hidden';
+    }
+
+    renderCategoryDrawerPapers(category);
+}
+
+/**
+ * Closes the slide-up bottom drawer.
+ */
+function closeCategoryDrawer(event) {
+    if (event && event.target !== document.getElementById('category-papers-drawer')) {
+        return;
+    }
+    const drawer = document.getElementById('category-papers-drawer');
+    if (drawer) {
+        drawer.classList.remove('active');
+        document.body.style.overflow = '';
+    }
+}
+
+/**
+ * Renders papers inside the category drawer.
+ */
+function renderCategoryDrawerPapers(category, filterText = '') {
+    const listContainer = document.getElementById('drawer-papers-list');
+    const countLabel = document.getElementById('drawer-category-count');
+    if (!listContainer) return;
+
+    const query = filterText.toLowerCase().trim();
+
+    let papers = _allPapers.filter(p => p.category === category && p.is_active);
+
+    if (query !== '') {
+        papers = papers.filter(p => 
+            p.paper_number.toLowerCase().includes(query) || 
+            (p.unique_code && p.unique_code.toLowerCase().includes(query))
+        );
+    }
+
+    if (countLabel) countLabel.innerText = `${papers.length} Paper${papers.length !== 1 ? 's' : ''}`;
+
+    if (papers.length === 0) {
+        listContainer.innerHTML = `
+            <div class="text-center py-8 text-m3-onSurfaceVariant">
+                <span class="material-symbols-rounded text-3xl block mb-2">find_in_page</span>
+                No papers found matching your search.
+            </div>`;
+        return;
+    }
+
+    listContainer.innerHTML = papers.map(p => `
+        <div class="drawer-paper-row flex items-center justify-between gap-3 mb-2">
+            <div class="flex flex-col">
+                <span class="font-bold text-m3-onSurface text-sm">${p.paper_number}</span>
+                <span class="text-xs text-m3-onSurfaceVariant font-mono">${p.unique_code || 'No Code'} • Order: ${p.sort_order}</span>
+            </div>
+            <button class="m3-btn m3-btn-tonal !h-8 !px-3 rounded-lg flex items-center justify-center gap-1" onclick="viewPaperQuickDetails('${p.paper_number.replace(/'/g, "\\'")}', '${p.unique_code || ''}', '${p.category}')">
+                <span class="material-symbols-rounded text-sm">info</span>
+                <span>Details</span>
+            </button>
+        </div>
+    `).join('');
+}
+
+/**
+ * Handles drawer searching/filtering of papers.
+ */
+function filterDrawerPapers() {
+    const searchVal = document.getElementById('drawer-search-input')?.value || '';
+    renderCategoryDrawerPapers(_currentDrawerCategory, searchVal);
+}
+
+/**
+ * Toggles landscape card select state visually.
+ */
+function togglePaperCard(id, checked) {
+    const card = document.getElementById(`export-card-${id}`);
+    if (!card) return;
+
+    const indicator = card.querySelector('.active-indicator');
+    const selectState = card.querySelector('.select-state');
+
+    if (checked) {
+        card.classList.add('bg-m3-primaryContainer/15', 'border-m3-primary/60', 'shadow-[0_0_15px_rgba(128,220,160,0.15)]');
+        card.classList.remove('border-m3-outline/10');
+        if (indicator) indicator.classList.remove('opacity-0');
+        if (selectState) {
+            selectState.innerHTML = '<span class="material-symbols-rounded text-xs text-m3-primary icon-filled">check_box</span> Selected';
+            selectState.classList.add('text-m3-primary');
+            selectState.classList.remove('text-m3-onSurfaceVariant');
+        }
+    } else {
+        card.classList.remove('bg-m3-primaryContainer/15', 'border-m3-primary/60', 'shadow-[0_0_15px_rgba(128,220,160,0.15)]');
+        card.classList.add('border-m3-outline/10');
+        if (indicator) indicator.classList.add('opacity-0');
+        if (selectState) {
+            selectState.innerHTML = '<span class="material-symbols-rounded text-xs">check_box_outline_blank</span>';
+            selectState.classList.remove('text-m3-primary');
+            selectState.classList.add('text-m3-onSurfaceVariant');
+        }
+    }
+}
+
+/**
+ * Displays quick details about a paper as a premium toast message.
+ */
+function viewPaperQuickDetails(name, code, category) {
+    showToast(`Paper: ${name} | Category: ${category} | Code: ${code || 'None'}`, 'success');
+}
+
+// Automatically blur and hide the mobile virtual keyboard when clicking/tapping outside of manual-id input
+document.addEventListener('touchstart', function(event) {
+    const manualIdInput = document.getElementById('manual-id');
+    if (!manualIdInput) return;
+    
+    if (document.activeElement === manualIdInput) {
+        const isClickInside = manualIdInput.contains(event.target) || 
+                              event.target.closest('.m3-btn') || 
+                              event.target.closest('.m3-input-group');
+        
+        if (!isClickInside) {
+            manualIdInput.blur();
+        }
+    }
+});
+
+document.addEventListener('mousedown', function(event) {
+    const manualIdInput = document.getElementById('manual-id');
+    if (!manualIdInput) return;
+    
+    if (document.activeElement === manualIdInput) {
+        const isClickInside = manualIdInput.contains(event.target) || 
+                              event.target.closest('.m3-btn') || 
+                              event.target.closest('.m3-input-group');
+        
+        if (!isClickInside) {
+            manualIdInput.blur();
+        }
     }
 });
