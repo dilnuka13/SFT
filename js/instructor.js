@@ -36,12 +36,16 @@ async function loadInstructorsForLogin() {
     if (error) return;
 
     const list = document.getElementById('instructor-list');
-    list.innerHTML = data.map(inst => `
-        <div class="avatar-item" onclick="selectInstructor('${inst.id}', '${inst.name}')" id="inst-${inst.id}">
-            <img src="${inst.avatar_url || 'https://via.placeholder.com/60'}" alt="${inst.name}">
-            <span>${inst.name.split(' ')[0]}</span>
-        </div>
-    `).join('');
+    list.innerHTML = data.map(inst => {
+        const nameParts = inst.name.split(' ');
+        const displayName = nameParts[1] || nameParts[0] || inst.name;
+        return `
+            <div class="avatar-item" onclick="selectInstructor('${inst.id}', '${inst.name}')" id="inst-${inst.id}">
+                <img src="${inst.avatar_url || 'https://via.placeholder.com/60'}" alt="${inst.name}">
+                <span>${displayName}</span>
+            </div>
+        `;
+    }).join('');
 }
 
 let selectedInstructorId = null;
